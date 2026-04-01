@@ -1,0 +1,2100 @@
+---
+title: "2_pans_modelling"
+author: "Jo Garrett"
+date: "`r Sys.Date()`"
+output: 
+  officedown::rdocx_document
+always_allow_html: true
+---
+
+```{r load_packages,echo =FALSE, message=FALSE, warning =FALSE}
+## deleted from above output: word_document
+library(officedown)
+library(broom)
+library(broom.helpers)
+#library(car)
+#library(cowplot)
+#library(DiagrammeR)
+
+#library(DiagrammeRsvg)
+library(dplyr)
+library(fastDummies)
+library(flextable)
+library(forcats)
+library(ggplot2)
+library(ggeffects)
+#library(glue)
+
+library(gtsummary)
+
+library(lavaan)
+
+#library(lavaanPlot)
+library(RColorBrewer)
+#library(rmarkdown)
+library(rsq)
+#library(rsvg)
+
+#library(survey)
+library(tibble)
+library(tidyr)
+library(tidySEM)
+library(VGAM)
+
+#library(lavaan.survey)
+```
+
+
+
+```{r custom_tbl_function, echo = FALSE}
+## Create custom functions for displaying model results
+glm_tbl_regression<-function(model_output){
+  tbl_regression(model_output, 
+                 intercept = TRUE,
+                 estimate_fun=function(x) style_number(x, digits=2), pvalue_fun=function(x) style_pvalue(x, digits=3)) %>%
+    bold_p() %>%
+    add_significance_stars(hide_ci=FALSE, hide_se = TRUE) %>%
+    add_glance_table(label=list(AIC~"AIC", Rsq~"R2"), include = c(AIC, nobs, Rsq),
+                     glance_fun=function(x) glance(x) %>% add_column(Rsq=rsq(x)))
+}
+
+
+## Custom model function for displaying logistical regression model results
+bin_tbl_regression<-function(model_output){
+  tbl_regression(model_output, 
+                 exponentiate = TRUE,
+                 intercept = TRUE,
+                 estimate_fun=function(x) style_number(x, digits=2), pvalue_fun=function(x) style_pvalue(x, digits=3)) %>%
+    bold_p() %>%
+    add_significance_stars(hide_ci=FALSE, hide_se = TRUE) %>%
+    add_glance_table(label=list(AIC~"AIC", Rsq~"R2"), include = c(AIC, nobs, Rsq),
+                     glance_fun=function(x) glance(x) %>% add_column(Rsq=rsq(x)))
+}
+```
+
+
+```{r read_data, echo = FALSE}
+
+## Specify location of data generated using 2_pans_modelling.Rmd
+Data_wd<-"E:\\Projects\\RENEW\\Jo\\PANS\\PANS_data"
+Results_wd<-"E:\\Projects\\RENEW\\Jo\\PANS\\Results"
+Figures_wd<-"E:\\Projects\\RENEW\\Jo\\PANS\\Figures"
+setwd(Data_wd)
+
+## Find most recently generated workspace
+df_file_info <- data.frame(file.info(list.files(Data_wd, full.names = T, pattern ="pans_data_workspace_")), list.files(Data_wd, pattern ="pans_data_workspace_"))
+ind<-which(df_file_info$mtime==max(df_file_info$mtime))
+
+
+## Load most recent workspace
+load(df_file_info[ind,8])
+
+rm(ind, df_file_info)
+
+mod_data$Gender<-as.factor(mod_data$Gender)
+mod_data$Age_Band<-as.factor(mod_data$Age_Band) %>%
+relevel(ref = "40-54")
+```
+
+
+<!---BLOCK_LANDSCAPE_START--->
+# RQ1
+
+## Outcome 1 - Composite measure of nearby nature qualities
+
+```{r glm_comp_measure_nearby_nature, echo = FALSE, message=FALSE, warning=FALSE}
+
+
+predictor_names<-c("Region", "Home_IMD_quint", 
+                   "Income", "ACNG_A_pred_ptc_wtd_percent_cats",
+                   "AH_A_pred_ptc_wtd_percent_cats", 
+                   "BMYW_A_pred_ptc_wtd_percent_cats",
+                   "BUAG_A_pred_ptc_wtd_percent_cats",
+                   "IG_A_pred_ptc_wtd_percent_cats")
+predictor_labels<-c("Region", "IMD", "Income",
+                    "ACN grassland", "Arable", "Woodland",
+                    "Built up and gardens","Improved grassland")
+pred_code<-c("Region", "IMD", "Inc",
+             "ACNG", "AH", "BMYW",
+             "BUAG","IG")
+predictor_names<-c(predictor_names, "num_habs_wtd")
+pred_code<-c(pred_code, "Num")
+
+print("Check factor levels for region, South East should be last")
+levels(mod_data$Region)
+
+## Run unadjusted models for each predictor
+for (i in 1:length(predictor_names)){
+  ## Generate unadjusted model formula
+  mod_form<-reformulate(predictor_names[i], response = "M1_Q5_comp")
+  ## Fit unadjusted model
+  unadj_glm<-glm(mod_form, data = mod_data, contrasts = list(Region="contr.sum") )
+  ## Save each unadjusted model in the environment
+  assign(paste0("unadj_glm_", pred_code[i]), unadj_glm)
+  rm(unadj_glm, mod_form)
+}
+
+rm(i)
+
+## Fit adjusted model predicting nearby nature qualities composite by land cover proportions
+adj_glm_habs<-glm(M1_Q5_comp ~Region +Home_IMD_quint + Income  + ACNG_A_pred_ptc_wtd_percent_cats+ AH_A_pred_ptc_wtd_percent_cats + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions + season, data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum") )
+## Generate model summary table
+#adj_glm_habs_tbl<-glm_tbl_regression(adj_glm_habs)
+
+## Fit adjusted model predicting nearby nature qualities composite by land cover number
+adj_glm_num_hab<-glm(M1_Q5_comp ~Region +Home_IMD_quint + Income  +  num_habs_wtd + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions + season, data = mod_data,weights = rescaled_weights, contrasts = list(Region="contr.sum") )
+
+
+## List all model objects
+list_mods<-ls(pattern = "adj")
+
+## Generate model summary tables for all models
+for (i in 1:length(list_mods)){
+  mod_tbl<-glm_tbl_regression(get(list_mods[i]))
+  assign(paste0(list_mods[i], "_tbl"), mod_tbl)
+}
+
+
+## Merge all model results tables for printing
+t_merge<-tbl_merge(tbls = list(unadj_glm_Region_tbl, 
+                               unadj_glm_IMD_tbl,
+                               unadj_glm_Inc_tbl,
+                               unadj_glm_ACNG_tbl,
+                               unadj_glm_AH_tbl, 
+                               unadj_glm_BMYW_tbl,
+                               unadj_glm_BUAG_tbl, 
+                               unadj_glm_IG_tbl,  
+                               adj_glm_habs_tbl), 
+                   tab_spanner = c("Unadj - Region", "Unadj - IMD", "Unadj - income", "Unadj -ACNG", "Unadj -AH", "Unadj -BMYW","Unadj -BUAG","Unadj -IG", "Adj")) %>%
+  modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+
+## Print table
+t_merge
+
+print("Number of land covers")
+
+## Merge all number of land cover model results tables for printing
+t_merge<-tbl_merge(tbls = list(unadj_glm_Num_tbl,
+                               adj_glm_num_hab_tbl), 
+                   tab_spanner = c("Unadj", "Adj")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+
+
+## print table
+t_merge
+
+
+list_tbls<-ls(pattern ="adj_glm.*tbl")
+rm(list = list_tbls)
+rm(t_merge, list_tbls, mod_tbl, i)
+
+```
+
+
+```{r, plot_comp_mods, echo = FALSE}
+
+# tidy models for plotting
+list_mods<-ls(pattern = "adj")
+
+## Generate tidy model summaries
+
+for (model_name in list_mods){
+  mod_obj<-get(model_name)
+  ## Tidy model object
+  tidy_mod<- tidy(mod_obj) %>%
+    as.data.frame()
+  ## Get c95% confidence intervals
+  confints_mods<-confint(mod_obj) %>%
+    as.data.frame()
+  ## Merge tidy model results and confidence intervals
+  tidy_mod<-data.frame(tidy_mod, confints_mods)
+  names(tidy_mod)[6:7]<-c("lwr", "upr")
+  rm(confints_mods)
+  
+  ## Create new columns, with Variable and level/category
+  terms<-attr(mod_obj$terms, "term.labels")
+  tidy_mod$Variable<-NA
+  tidy_mod$term_levels<-NA
+  for (j in 1:length(terms)){
+    ind<-grep(terms[j], tidy_mod$term)
+    tidy_mod$Variable[ind]<-terms[j]
+    tidy_mod$term_levels[ind]<- gsub(terms[j], "",tidy_mod$term[ind] )
+    }
+  tidy_mod$Variable<-as.factor(tidy_mod$Variable) %>%
+    factor(levels=unique(tidy_mod$Variable))
+    tidy_mod$term<-as.factor(tidy_mod$term) %>%
+    factor(levels=unique(tidy_mod$term))
+    ## Save tidy model results to environment
+  assign(paste0("tidy_", model_name), tidy_mod)
+  
+}
+
+rm(tidy_mod, model_name, list_mods, ind, terms, mod_obj, j)
+
+## Rename region term levels 
+ind<-grep("Region", tidy_adj_glm_habs$Variable)
+tidy_adj_glm_habs$term_levels[ind]<-as.character(levels(mod_data$Region)[1:8])
+
+ind<-grep("Region",tidy_adj_glm_num_hab$Variable)
+tidy_adj_glm_num_hab$term_levels[ind]<-as.character(levels(mod_data$Region)[1:8])
+rm(ind)
+
+tidy_adj_glm_habs$Variable<-gsub("Home_", "", tidy_adj_glm_habs$Variable)
+tidy_adj_glm_habs$Variable<-gsub("_quint", "", tidy_adj_glm_habs$Variable)
+tidy_adj_glm_habs$Variable<-gsub("_cats", "", tidy_adj_glm_habs$Variable)
+tidy_adj_glm_habs$Variable<-gsub("_A_pred_ptc_wtd_percent", "", tidy_adj_glm_habs$Variable)
+
+
+tidy_adj_glm_num_hab$Variable<-gsub("Home_", "", tidy_adj_glm_num_hab$Variable)
+tidy_adj_glm_num_hab$Variable<-gsub("_quint", "", tidy_adj_glm_num_hab$Variable)
+tidy_adj_glm_num_hab$Variable<-gsub("_cats", "", tidy_adj_glm_num_hab$Variable)
+tidy_adj_glm_num_hab$Variable<-gsub("_A_pred_ptc_wtd_percent", "", tidy_adj_glm_num_hab$Variable)
+
+## plot 1 - region, household income and IMD coefficients based on the middle with habitats at LSOA
+
+
+tidy_adj_glm_habs$term_levels<-as.factor(tidy_adj_glm_habs$term_levels) 
+tidy_adj_glm_habs$term_levels<-factor(tidy_adj_glm_habs$term_levels,levels=levels(tidy_adj_glm_habs$term_levels)[c(1:9, 13:14, 20:24, 10:12, 15,25:29,16:19,30:50)])
+
+ind<-which(tidy_adj_glm_habs$Variable=="ACNG")
+tidy_adj_glm_habs$Variable[ind]<-"ACN grassland"
+ind<-which(tidy_adj_glm_habs$Variable=="AH")
+tidy_adj_glm_habs$Variable[ind]<-"Arable"
+ind<-which(tidy_adj_glm_habs$Variable=="BMYW")
+tidy_adj_glm_habs$Variable[ind]<-"Woodland"
+ind<-which(tidy_adj_glm_habs$Variable=="IG")
+tidy_adj_glm_habs$Variable[ind]<-"Improved grassland"
+ind<-which(tidy_adj_glm_habs$Variable=="BUAG")
+tidy_adj_glm_habs$Variable[ind]<-"Built-up and Gardens"
+rm(ind)
+
+tidy_adj_glm_habs$Variable<-as.factor(tidy_adj_glm_habs$Variable)
+tidy_adj_glm_habs$Variable<-factor(tidy_adj_glm_habs$Variable,levels = c("ACN grassland", "Built-up and Gardens", "Arable","IMD",  "Woodland" ,"Income", "Improved grassland" ,"Region"))
+
+tidy_adj_glm_habs$Significance<-"Not significant"
+ind<-which(tidy_adj_glm_habs$p.value<0.05)
+tidy_adj_glm_habs$Significance[ind]<-"Significant"
+tidy_adj_glm_habs$Significance<-as.factor(tidy_adj_glm_habs$Significance)
+
+## plot Adjusted results predicting the composite level of nearby nature qualities
+p<-ggplot(tidy_adj_glm_habs[2:37,], aes(x =term_levels, y = estimate, ymin = lwr, ymax = upr))+
+  geom_pointrange(aes(shape = Significance))+
+  theme_minimal()+
+   scale_shape_manual(values = c(1, 19)) +
+  facet_wrap(facets = vars(Variable), nrow = 4, scales = "free_y")+
+  coord_flip()+
+  geom_hline(yintercept=0,linetype="dashed", colour = "gray51")+
+  ylab("Beta coefficient")+
+  xlab("Variable levels")
+
+# Save plot
+p
+setwd(Figures_wd)
+ggsave("RQ1_nature_comp_adj_coefs.png", dpi = 300, height = 7.5, width = 8)
+
+rm(tidy_adj_glm_habs)
+rm(list = ls(pattern = "tidy_unadj"))
+
+## Plot predicted nearby nature qualities composite by number of habitats, adjusted
+predict_num_habs<- predict_response(adj_glm_num_hab, terms = "num_habs_wtd")
+plot(predict_num_habs, facets = FALSE, show_title= FALSE)+
+  xlab("Number of habitats")+
+  ylab("Predicted composite score")+
+  xlim(c(1, 17))
+
+# Save plot
+setwd(Figures_wd)
+ggsave("RQ1_nature_comp_adj_coefs_num_habs.png", dpi = 300, height = 4, width = 4.5)
+
+rm(list = ls(pattern = "unadj_glm"))
+rm(tidy_adj_glm_num_hab, p)
+rm(list = ls(pattern = "adj_glm"))
+rm(ind, predict_num_habs)
+
+```
+
+
+
+<!---BLOCK_LANDSCAPE_STOP--->
+## Outcome 2 - Good opportunities to see nature
+
+```{r func_print_models, echo = FALSE}
+## Create custom functions for presenting cumulative link model results
+
+tidy_vglm<-function(model_object){
+  model_summary<-summary(model_object)
+  tidy_coefs<-data.frame("Odds"=exp(coef(model_object)),exp(confint(model_object)),"pvalue"=model_summary@coef3[,4]) %>%
+    mutate(odds_rounded=round(Odds, digits =2)) %>%
+    mutate(odds_stars=as.character(odds_rounded))
+  
+  ind<-which(tidy_coefs$pvalue<0.05)
+  tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "*")
+  ind<-which(tidy_coefs$pvalue<0.01)
+  tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "**")
+  ind<-which(tidy_coefs$pvalue<0.001)
+  tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "***")
+  tidy_coefs$odds_rounded<-NULL
+  tidy_coefs$ci<-paste0("(",round(tidy_coefs$X2.5.., digits =2), ", ", round(tidy_coefs$X97.5.., digits=2),")")
+  tidy_coefs$full_results<-paste(tidy_coefs$odds_stars,tidy_coefs$ci, sep = " ")
+  tidy_coefs$terms<-rownames(tidy_coefs)
+  tidy_coefs<-data.frame(tidy_coefs$terms, tidy_coefs$full_results)
+  names(tidy_coefs)<-gsub("tidy_coefs\\.","",names(tidy_coefs))
+  ind<- gregexpr(":", tidy_coefs$terms) %>%
+       unlist()
+  tidy_coefs$interval <-substr(tidy_coefs$terms, ind+1,nchar(tidy_coefs$terms))
+  tidy_coefs$variable<-substr(tidy_coefs$terms,1, ind-1)
+  ind<-which(nchar(tidy_coefs$interval)>1)
+   tidy_coefs$variable[ind]<-tidy_coefs$interval[ind]
+   tidy_coefs$interval[ind]<-"Parallel"
+  rm(ind)
+   tidy_coefs$terms<-NULL
+  tidy_coefs<-pivot_wider(tidy_coefs, names_from = interval, values_from = 'full_results')
+  return(tidy_coefs)
+}
+
+## Create custom function for calculating R squared for cumulative link models
+vglm_rsq<-function(model_object, null_model){
+  prsq<-1 - deviance(model_object) / deviance(null_model)
+  return(prsq)
+}
+
+
+## Create custom function to add model fit information to coefficient table for cumulative link models
+adding_model_info<-function(variable, model_object, null_model_object, tidy_model_object){
+  X1<-c(round(AIC(model_object), digits = 2),
+        signif(vglm_rsq(model_object, null_model_object), digits = 3))
+  if ( NCOL(tidy_model_object)==5){
+    to_add<-data.frame(variable,X1, "2" = rep(NA,2),
+                     "3" = rep(NA,2),
+                     "4" = rep(NA,2))
+  } else if (NCOL(tidy_model_object)==6){
+    to_add<-data.frame(variable,X1,"1"= rep(NA,2), "2" = rep(NA,2),
+                     "3" = rep(NA,2),
+                     "4" = rep(NA,2))
+  }
+  
+  rm(X1)
+  names(to_add)<-names(tidy_model_object)
+  tidy_model_with_stats<-rbind(tidy_model_object, to_add)
+  rm(to_add)
+  return(tidy_model_with_stats)
+}
+
+```
+
+## Non-parallel probit cumulative link models
+### Unadjusted models
+```{r vglms_unadj, echo = FALSE}
+
+## Check level of region, reference value is the last one for sum contrasts, and this should be South East
+#levels(mod_data$Region)
+
+## Region unadjusted model
+vglm_unadj_region<- vglm(local_good_nature_ord ~ Region,
+                         family= VGAM::cumulative(link = "probitlink", parallel = FALSE, reverse = TRUE),
+  data = mod_data,
+              weights = mod_data$rescaled_weights, 
+              maxit = 1000, contrasts = list(Region = "contr.sum"), model = TRUE)
+tidy_vglm_unadj_region<-tidy_vglm(vglm_unadj_region)
+tidy_vglm_unadj_region$variable[2:9]<-levels(mod_data$Region)[1:8]
+
+vglm_unadj_IMD<- vglm(local_good_nature_ord ~Home_IMD_quint, family = cumulative(parallel = FALSE,link ="probitlink", reverse = TRUE), na.action = na.omit,
+              data = mod_data, weights = rescaled_weights)
+tidy_vglm_unadj_IMD<-tidy_vglm(vglm_unadj_IMD)
+
+vglm_unadj_inc<- vglm(local_good_nature_ord ~Income, family = cumulative(parallel = FALSE,link ="probitlink", reverse = TRUE), na.action = na.omit,
+              data = mod_data, weights = rescaled_weights)
+tidy_vglm_unadj_inc<-tidy_vglm(vglm_unadj_inc)
+
+pcs_habs_cats<-c("ACNG_A_pred_ptc_wtd_percent_cats","AH_A_pred_ptc_wtd_percent_cats", "BMYW_A_pred_ptc_wtd_percent_cats", "BUAG_A_pred_ptc_wtd_percent_cats", "IG_A_pred_ptc_wtd_percent_cats")
+
+short_lsoas_habs<-c("ACNG", "AH", "BMYW", "BUAG","IG","num")
+
+## Carry out undjusted vglms for all land cover categories
+for (i in 1:length(pcs_habs_cats)){
+   formula <- reformulate(pcs_habs_cats[i],response = "local_good_nature_ord")
+   vglm_obj<-vglm(formula, family = cumulative(parallel = FALSE,link = "probitlink", reverse = TRUE), na.action = na.omit,
+              data = mod_data, weights = rescaled_weights)
+   assign(paste0("vglm_unadj_", short_lsoas_habs[i], "_pcs_cats"),   vglm_obj)
+   tidy_vglm_obj<-tidy_vglm(vglm_obj)
+    assign(paste0("tidy_vglm_unadj_", short_lsoas_habs[i]),   tidy_vglm_obj)
+    rm(tidy_vglm_obj, vglm_obj, formula)
+}
+rm(i)
+
+```
+
+### Adjusted models
+```{r adj_model_vglm,echo = FALSE, warning = FALSE, fig.width = 5, fig.height = 3}
+
+## Adjusted model with region, IMD, household income, land cover categories and all covariates
+adj_vglm<-vglm(local_good_nature_ord ~ Region +Home_IMD_quint + Income  +ACNG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats +BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year + season + covid_restrictions, family = cumulative(link = "probitlink", parallel =FALSE,reverse = TRUE), data =mod_data, weights = rescaled_weights, contrasts = list(Region = "contr.sum"))
+
+tidy_adj_vglm<-tidy_vglm(adj_vglm)
+tidy_adj_vglm$variable[2:9]<-levels(mod_data$Region)[1:8]
+
+## Name all intercepts with predictor variable for later merging
+list_tidy_unadj<-ls(pattern = "tidy_vglm_unadj")
+for (i in 1:length(list_tidy_unadj)){
+  obj <- get(list_tidy_unadj[i])   
+  obj$variable[1] <- paste0("Intercept_", gsub("tidy_vglm_unadj_","", list_tidy_unadj[i]))
+  assign(list_tidy_unadj[i], obj)
+}
+
+rm(list_tidy_unadj, obj, i)
+
+
+## Carry out null model for later model fit statistics
+null<- vglm(local_good_nature_ord ~1 ,
+                         family= VGAM::cumulative(link = "probitlink", parallel = FALSE, reverse = TRUE),
+  data = mod_data,
+              weights = mod_data$rescaled_weights, 
+              maxit = 1000)
+
+variable<-c("AIC_region","region_rsq")
+tidy_vglm_unadj_region<-adding_model_info(variable, vglm_unadj_region, null, tidy_vglm_unadj_region)
+
+variable<-c("AIC_IMD","IMD_rsq")
+tidy_vglm_unadj_IMD<-adding_model_info(variable, vglm_unadj_IMD, null, tidy_vglm_unadj_IMD)
+
+variable<-c("AIC_inc","inc_rsq")
+tidy_vglm_unadj_inc<-adding_model_info(variable, vglm_unadj_inc, null, tidy_vglm_unadj_inc)
+rm(variable)
+
+## Short land cover names
+short_lcs<-c("ACNG", "AH", "BMYW", "BUAG", "IG")
+
+## Add rsq and AIC to land cover models
+for (i in 1:length(short_lcs)){
+  variable<-c(paste0("AIC_", short_lcs[i]),paste0("rsq_", short_lcs[i]))
+  unadj_mod<-adding_model_info(variable,get(paste0( "vglm_unadj_",short_lcs[i], "_pcs_cats")), null, get(paste0( "tidy_vglm_unadj_",short_lcs[i])))
+  assign(paste0( "tidy_vglm_unadj_",short_lcs[i]), unadj_mod)
+  rm(variable, unadj_mod)
+}
+
+list_tidy_unadj <-ls(pattern = "tidy_vglm_unadj")
+list_tidy_unadj<-list_tidy_unadj[c(8, 6, 7, 1:5)]
+
+## Put all unadj models together in a single data.frame
+all_unadj <- do.call(rbind, mget(list_tidy_unadj, inherits = TRUE))
+
+names(all_unadj)[2:5]<-paste0("unadj_",names(all_unadj)[2:5])
+rm(list_tidy_unadj)
+
+names(tidy_adj_vglm)[2:5]<-paste0("adj_",names(tidy_adj_vglm)[2:5])
+
+all_unadj$variable<-as.factor(all_unadj$variable)
+all_unadj$variable<-factor(all_unadj$variable, levels = unique(all_unadj$variable))
+
+## Add model fit statistics to adjusted model results
+variable<-c("AIC_adj","adj_rsq")
+tidy_adj_vglm<-adding_model_info(variable, adj_vglm, null, tidy_adj_vglm)
+rm(variable)
+
+tidy_adj_vglm$variable<-as.factor(tidy_adj_vglm$variable)
+tidy_adj_vglm$variable<-factor(tidy_adj_vglm$variable, levels = unique(tidy_adj_vglm$variable))
+
+## Merge all unadjusted and adjusted results together in the same data.frame
+all_results<-merge(all_unadj, tidy_adj_vglm, all = TRUE)
+
+
+## Save all results 
+setwd(Results_wd)
+write.csv(all_results, "RQ1_nearby_nature_opps_vglm_results.csv")
+
+
+
+```
+
+## Unadjusted and adjusted number of land covers vglms
+```{r num_habs_rq1, echo = FALSE}
+
+## Unadjusted land cover diversity vglm
+unadj_vglm_num_habs<-vglm(local_good_nature_ord ~ num_habs_wtd, family = cumulative(link = "probitlink", parallel =FALSE,reverse = TRUE), data = mod_data, weights = rescaled_weights)
+
+## Adjuseted land cover diversity vglm
+adj_vglm_num_habs<-vglm(local_good_nature_ord ~ Region +Home_IMD_quint + Income  +  num_habs_wtd + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats + Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions + season, family = cumulative(link = "probitlink", parallel =FALSE,reverse = TRUE), data = mod_data, weights = rescaled_weights, contrasts = list(Region = "contr.sum"))
+
+
+## Tidy model results
+tidy_unadj_vglm_num_habs<-tidy_vglm(unadj_vglm_num_habs)
+tidy_adj_vglm_num_habs<-tidy_vglm(adj_vglm_num_habs)
+tidy_adj_vglm_num_habs$variable[2:9]<-levels(mod_data$Region)[1:8]
+
+
+## Add AIC pseudoR2 to tidy model results
+variable<-c("AIC_unadj","unadj_rsq")
+tidy_unadj_vglm_num_habs<-adding_model_info(variable, unadj_vglm_num_habs, null, tidy_unadj_vglm_num_habs)
+
+variable<-c("AIC_adj","adj_rsq")
+tidy_adj_vglm_num_habs<-adding_model_info(variable, adj_vglm_num_habs, null, tidy_adj_vglm_num_habs)
+
+
+names(tidy_unadj_vglm_num_habs)[2:5]<-paste0("unadj_",names(tidy_unadj_vglm_num_habs)[2:5])
+
+names(tidy_adj_vglm_num_habs)[2:5]<-paste0("adj_",names(tidy_adj_vglm_num_habs)[2:5])
+rm(variable)
+
+tidy_unadj_vglm_num_habs$variable<-as.factor(tidy_unadj_vglm_num_habs$variable) %>%
+  factor( levels = unique(tidy_unadj_vglm_num_habs$variable))
+
+tidy_adj_vglm_num_habs$variable<-as.factor(tidy_adj_vglm_num_habs$variable) %>% 
+  factor( levels = unique(tidy_adj_vglm_num_habs$variable))
+
+all_results_num_habs<-merge(tidy_unadj_vglm_num_habs, tidy_adj_vglm_num_habs, all = TRUE)
+
+setwd(Results_wd)
+write.csv(all_results_num_habs, "all_results_num_habs_RQ1.csv")
+
+rm(null)
+
+```
+
+```{r custom_plot_functions, echo = FALSE}
+
+
+# Create custom plot functions for plotting vglms
+create_new_data<-function(predictor_data, terms, predictor_name){
+  if (predictor_name=="num_habs_wtd"){
+    num_habs_seq<-seq(min(predictor_data), max(predictor_data))
+     new_data_df<-data.frame(matrix(NA,
+                                   nrow = length(num_habs_seq),
+                                   ncol = length(terms)))
+     names(new_data_df)<-terms
+      new_data_df[[predictor_name]]<-num_habs_seq
+      rm(num_habs_seq)
+  } else if (predictor_name!="BUAG_A_pred_ptc_wtd_percent_cats"){
+    new_data_df<-data.frame(matrix(NA,
+                                   nrow = length(levels(predictor_data)),
+                                   ncol = length(terms)))
+    names(new_data_df)<-terms
+    new_data_df[[predictor_name]]<-levels(predictor_data)
+  } else if (predictor_name=="BUAG_A_pred_ptc_wtd_percent_cats") {
+    new_data_df<-data.frame(matrix(NA,
+                                   nrow =  length(levels(predictor_data))-1,
+                                   ncol = length(terms)))
+    names(new_data_df)<-terms
+    new_data_df[[predictor_name]]<-levels(mod_data[[predictor_name]])[2:5]
+  }
+  #Find all columns except the predictor column.
+  #For each of those other columns, replace their values with the first level of the corresponding column in mod_data.
+  col_ind<-which(names(new_data_df)!=predictor_name)
+  
+  for (i in col_ind) {
+    col_name <- names(new_data_df)[i]
+    new_data_df[[col_name]] <- rep(levels(mod_data[[col_name]])[1], nrow(new_data_df))
+  }
+
+  
+  rm(col_ind, i)
+  return(new_data_df)
+}
+
+
+predict_for_plots<-function(new_data_df,predictor_name,  model_object, outcome_data){
+  predictions_vglm<- predictvglm(model_object, newdata = new_data_df, type = "response") %>%
+    as.data.frame()
+  fam<-model_object@family
+  fam_inv<-fam@linkinv
+  rm(fam)
+  pred_link<-predictvglm(model_object,
+                         newdata = new_data_df, 
+                         type = "link",se.fit = TRUE)
+  
+  se_fit<-pred_link$se.fit
+  fit_link<-pred_link$fitted.values
+  rm(pred_link)
+  
+  upr = fam_inv(fit_link + (2 * se_fit))
+  lwr = fam_inv(fit_link - (2 * se_fit))
+  upr_df<-data.frame(upr, "Variable"=new_data_df[[predictor_name]])
+  names(upr_df)[1:5]<-levels(outcome_data)
+  
+  lwr_df<-data.frame(lwr, "Variable"=new_data_df[[predictor_name]])
+  names(lwr_df)[1:5]<-levels(outcome_data)
+  rm(fam_inv, fit_link, se_fit, upr, lwr)
+  predictions_vglm$Variable<-new_data_df[[predictor_name]]
+  #predictions_vglm$Variable<-new_data_df$Region
+  predictions_vglm<-pivot_longer(predictions_vglm, 
+                                 !Variable, names_to = "Response", 
+                                 values_to = "Predictions")
+  lwr_df<-pivot_longer(lwr_df, !Variable, 
+                       names_to = "Response", values_to = "lwr")
+  upr_df<-pivot_longer(upr_df, !Variable, names_to = "Response", 
+                       values_to = "upr")
+  predictions_vglm<-base::merge(predictions_vglm, 
+                          lwr_df, by = c("Variable", "Response"))
+  rm(lwr_df)
+  predictions_vglm<-merge(predictions_vglm,
+                          upr_df, by = c("Variable", "Response"))
+  rm(upr_df)
+  predictions_vglm$Response<-as.factor(predictions_vglm$Response)
+  predictions_vglm$Response<-factor(predictions_vglm$Response, levels = levels(outcome_data)) 
+  
+  coefs_model<-summary(model_object)@coef3 %>%
+    as.data.frame()
+  coefs_model$term<-rownames(coefs_model)
+  predictions_vglm$Significance<-"Not significant"
+  ind<-which(predictions_vglm$Response=="Strongly disagree")
+  predictions_vglm$Significance[ind]<-"Reference"
+  rm(ind)
+  ind<-gregexpr(pattern =':',coefs_model$term) %>%
+    unlist()
+  end_ind<-nchar(coefs_model$term)
+  coefs_model$Response<-substr(coefs_model$term, ind+1, end_ind) %>%
+    as.factor() %>%
+    fct_recode("Disagree" = "1", "Neither agree nor disagree"= "2",
+               "Agree" = "3", "Strongly agree"= "4")
+  rm(ind, end_ind)  
+  ind<-grep(predictor_name, coefs_model$term)
+  coefs_model<-coefs_model[ind,]
+  coefs_model$Variable<-NA
+  if (class(new_data_df[[predictor_name]])=="factor"){
+    if (predictor_name=="Region"){
+      i = seq(1,length(levels(mod_data$Region)[1:8]))
+    } else {
+      i = 1:length(levels(mod_data[[predictor_name]])[2:length(levels(mod_data[[predictor_name]]))])
+    }
+    start_ind<-4*i-3
+    end_ind<-start_ind+3
+    rm(i)
+    if (predictor_name=="Region"){
+      for (i in 1:length(levels(mod_data$Region)[1:8])){
+        coefs_model$Variable[start_ind[i]:end_ind[i]]<-rep(levels(mod_data$Region)[i])
+      }
+    }else if (predictor_name=="BUAG_A_pred_ptc_wtd_percent_cats"){
+      for (i in 1:(length(levels(mod_data$BUAG_A_pred_ptc_wtd_percent_cats))-2)){
+        coefs_model$Variable[start_ind[i]:end_ind[i]]<-rep(levels(mod_data$BUAG_A_pred_ptc_wtd_percent_cats)[i+2])
+      } 
+    }else {
+      for (i in 1:(length(levels(mod_data[[predictor_name]]))-1)){
+        coefs_model$Variable[start_ind[i]:end_ind[i]]<-rep(levels(mod_data[[predictor_name]])[i+1])
+      }
+    }
+    
+    rm(end_ind, start_ind, i)
+    predictions_vglm<-full_join(predictions_vglm, coefs_model, 
+                                by= c("Variable", "Response")) %>%
+      select(Variable, Response, Predictions, lwr, upr,
+             Significance, 'Pr(>|z|)')
+    ind<-which(predictions_vglm$`Pr(>|z|)`<0.05)
+    predictions_vglm$Significance[ind]<-"Significant"
+    if (predictor_name=="Region"){
+      ind<-which(predictions_vglm$Variable==levels(mod_data[[predictor_name]])[9])
+    } else if (predictor_name=="BUAG_A_pred_ptc_wtd_percent_cats"){
+      ind<-which(predictions_vglm$Variable==levels(mod_data[[predictor_name]])[2])
+    } else {
+      ind<-which(predictions_vglm$Variable==levels(mod_data[[predictor_name]])[1])
+    }
+    predictions_vglm$Significance[ind]<-"Reference"
+  } else{
+    # predictions_vglm
+    coefs_model$Variable<-NULL
+    predictions_vglm<-full_join(predictions_vglm, coefs_model, 
+                                by= "Response") %>%
+      select(Variable, Response, Predictions, lwr, upr,
+             Significance, 'Pr(>|z|)')
+    ind<-which(predictions_vglm$`Pr(>|z|)`<0.05)
+    predictions_vglm$Significance[ind]<-"Significant"
+    
+  }
+  return(predictions_vglm)
+}
+
+
+plot_by_predictor_sorted<-function(predictions_vglm,  predictor_name){
+    predictions_vglm$Response<-fct_recode(predictions_vglm$Response,"Neither"="Neither agree nor disagree")
+  predictions_vglm$Variable<-as.factor(predictions_vglm$Variable)
+  ind<-which(predictions_vglm$Response=="Agree")
+  sorted_agree<- predictions_vglm[ind,]
+  rm(ind)
+  sorted_agree<-sorted_agree[order(sorted_agree$Predictions),]
+  predictions_vglm$Variable<-factor(predictions_vglm$Variable, 
+                                    levels = unique(sorted_agree$Variable))
+  rm(sorted_agree)
+  colour_pal<-brewer.pal(8, "RdYlBu")
+  predictions_vglm$Significance<-as.factor(predictions_vglm$Significance) %>%
+    relevel(ref = "Reference")
+   shapes_code<-c(4, 1, 16)
+   predictions_vglm$Variable<-fct_recode(predictions_vglm$Variable, "Yorkshire and\nthe Humber"="Yorkshire and the Humber")
+  p_vglm<-ggplot(predictions_vglm, aes(x = Variable, y = Predictions,ymax = upr, ymin = lwr, colour = Response, group = Response, shape = Significance))+
+    geom_pointrange(position=position_dodge(width = 0.5))+
+    theme_minimal()+
+    #  ylim(c(0, 0.5))+
+    scale_colour_manual(values = colour_pal[c(1:3, 7:8)])+
+      scale_shape_manual(values = shapes_code)+
+    xlab(predictor_name)+
+    ylab("Prediction probability")+
+    theme(axis.text.x = element_text(angle = 25, vjust = 1, hjust=0.5), 
+          plot.margin = unit(c(0.2, 1, 0.1, 0.2),                                                                        "inches"), 
+          legend.position="bottom")+
+    coord_cartesian(clip = 'off')+
+    guides(color = "none")
+  
+  ind<-which(predictions_vglm$Variable==levels(predictions_vglm$Variable)[length(levels(predictions_vglm$Variable))])
+  p_vglm<- p_vglm +
+    annotate("text", x =(length(levels(predictions_vglm$Variable)))+0.5, 
+             y = predictions_vglm$Predictions[ind], 
+             label = predictions_vglm$Response[ind],
+             hjust= 0, size = 3)
+  return(p_vglm)
+}
+
+plot_by_predictor<-function(predictions_vglm,  predictor_name){
+    predictions_vglm$Response<-fct_recode(predictions_vglm$Response,"Neither"="Neither agree nor disagree") 
+    ##try this without built up
+    if (length(grep("ACN grassland|Arable|Woodland|Improved grassland",predictor_name))>=1){
+      cats_ord<-unique(predictions_vglm$Variable)
+      str_ind<-gregexpr(" " , cats_ord[3:5])
+      str_ind<-sapply(str_ind,"[[",1)
+      cats_ord[3:5]<-substr(cats_ord[3:5],1, str_ind-1)
+      rm(str_ind)
+      ind<-c(2, 1, order(as.numeric(cats_ord[3:5]))+2)
+      predictions_vglm$Variable<-as.factor(predictions_vglm$Variable)
+      predictions_vglm$Variable<-factor(predictions_vglm$Variable,levels=levels( predictions_vglm$Variable)[ind])
+  } else{
+    predictions_vglm$Variable<-as.factor(predictions_vglm$Variable) 
+  }
+  colour_pal<-brewer.pal(8, "RdYlBu")
+  predictions_vglm$Significance<-as.factor(predictions_vglm$Significance) %>%
+    relevel(ref = "Reference")
+    if (length(levels(predictions_vglm$Significance))==3){
+       shapes_code<-c(4, 1, 16)
+    }else {
+      shapes_code<-c(4,  16)
+    }
+ 
+  p_vglm<-ggplot(predictions_vglm,
+                   aes(x = Variable, y = Predictions,ymax = upr, 
+                       ymin = lwr, colour = Response, 
+                     shape = Significance))+
+    geom_pointrange(position=position_dodge(width = 0.5))+
+    theme_minimal()+
+    #  ylim(c(0, 0.5))+
+    scale_colour_manual(values = colour_pal[c(1:3, 7:8)])+
+      scale_shape_manual(values = shapes_code)+
+    xlab(predictor_name)+
+    ylab("Prediction probability")+
+    theme(axis.text.x = element_text(angle = 25, vjust = 1, hjust=0.5), 
+           plot.margin = unit(c(0.2, 1, 0.1, 0.2),   "inches"),
+          legend.position="bottom")+
+    coord_cartesian(clip = 'off') +
+    guides(color = "none")
+  
+  ind<-which(predictions_vglm$Variable==levels(predictions_vglm$Variable)[length(levels(predictions_vglm$Variable))])
+  p_vglm<- p_vglm +
+    annotate("text", x =(length(levels(predictions_vglm$Variable)))+0.5, 
+             y = predictions_vglm$Predictions[ind], 
+             label = predictions_vglm$Response[ind],
+             hjust= 0, size = 3)
+  return(p_vglm)
+}
+
+
+plot_by_numeric<-function(predictions_vglm, predictor_label){
+    predictions_vglm$Response<-fct_recode(predictions_vglm$Response,"Neither"="Neither agree nor disagree") 
+ colour_pal<-brewer.pal(8, "RdYlBu")
+ predictions_vglm$Significance<-as.factor(predictions_vglm$Significance) %>%
+   relevel(ref = "Reference")
+ if (length(levels(predictions_vglm$Significance))==3){
+       shapes_code<-c(4, 1, 16)
+   }else {
+      shapes_code<-c(4,  16)
+    }
+ 
+  p_vglm<-ggplot(predictions_vglm,
+                   aes(x = Variable, y = Predictions,ymax = upr, 
+                       ymin = lwr, colour = Response,fill = Response, group = Response))+
+     geom_ribbon(alpha = 0.5)+
+    geom_line(aes(linetype=Significance),size=0.7)+
+  
+  #  geom_pointrange(position=position_dodge(width = 0.5))+
+    theme_minimal()+
+   #    scale_shape_manual(values = shapes_code)+
+    #  ylim(c(0, 0.5))+
+    scale_colour_manual(values = colour_pal[c(1:3, 7:8)])+
+     scale_fill_manual(values = colour_pal[c(1:3, 7:8)])+
+  scale_linetype_manual(values=c("twodash", "dotted", "solid"))+
+    xlab(predictor_label)+
+    ylab("Prediction probability")
+    #guides(color = "none")
+  
+ return(p_vglm)
+}
+
+
+```
+
+
+## Plots
+```{r plotting_vglms, echo = FALSE, warning = FALSE}
+
+terms<-attr(adj_vglm@terms$terms, "term.labels")
+
+
+predictor_names<-c("Region", "Home_IMD_quint", 
+                   "Income", "ACNG_A_pred_ptc_wtd_percent_cats",
+                   "AH_A_pred_ptc_wtd_percent_cats", 
+                   "BMYW_A_pred_ptc_wtd_percent_cats",
+                   "BUAG_A_pred_ptc_wtd_percent_cats",
+                   "IG_A_pred_ptc_wtd_percent_cats")
+predictor_labels<-c("Region", "IMD", "Income",
+                    "ACN grassland", "Arable", "Woodland",
+                    "Built up and gardens","Improved grassland")
+pred_code<-c("Region", "IMD", "Inc",
+             "ACNG", "AH", "BMYW",
+             "BUAG","IG")
+
+for (i in 1:length(predictor_names)){
+  # Generate data.frame with new data for predictions
+  new_data_df<-create_new_data(mod_data[[predictor_names[i]]],
+                                terms, predictor_names[i])  %>%
+    mutate_if(is.character,as.factor)
+  
+  if (predictor_names[i]!="BUAG_A_pred_ptc_wtd_percent_cats"){
+    new_data_df$BUAG_A_pred_ptc_wtd_percent_cats<- ">0 - <50"
+  }
+  ## Predict outcome
+  predictions_vglm<-predict_for_plots(new_data_df,predictor_names[i], adj_vglm, mod_data$local_good_nature_ord)
+  
+  ## Plot predictions
+    if (predictor_names[i]=="Region"){
+    p_by_pred<-plot_by_predictor_sorted(predictions_vglm, predictor_labels[i])
+  }else{
+     p_by_pred<-plot_by_predictor(predictions_vglm, predictor_labels[i])
+  }
+  assign(paste0("preds_vglm_adj_", pred_code[i]), predictions_vglm)
+  assign(paste0("p_by_pred_", pred_code[i]),p_by_pred)
+}
+
+rm(i,   p_by_resp,  p_by_pred, predictions_vglm, new_data_df)
+
+## Save all prediction plots
+list_plots<-ls(pattern = "p_by_pred")
+setwd(Figures_wd)
+for ( i in 1:length(list_plots)){
+  start_char<-max(unlist(gregexpr("_", list_plots[i])))
+  ggsave(paste0("plot_preds_nature_opps_ord_by_pred", substr(list_plots[i], start_char, nchar(list_plots[i])), ".png"),plot =  plot(get(list_plots[i])),dpi = 300, height = 4.75, width = 7, units = "in")
+  rm(start_char)
+
+}
+
+rm(i, list_plots)
+
+## Predict good opporutnities to see nature by number of residential land covers
+terms<-attr(adj_vglm_num_habs@terms$terms, "term.labels")
+new_data_df<-create_new_data(mod_data$num_habs_wtd,
+                                terms, "num_habs_wtd")
+new_data_df$BUAG_A_pred_ptc_wtd_percent_cats<-">0 - <50"
+predictions_vglm<-predict_for_plots(new_data_df,"num_habs_wtd", adj_vglm_num_habs, mod_data$local_good_nature_ord)
+
+## Plot opportunities to see nature by number of residential land covers
+p_vglm_num<-plot_by_numeric(predictions_vglm,"Number of habitats")
+setwd(Figures_wd)
+ggsave("RQ1_ordered_predictions_num_habitats.png", dpi = 300,width = 6, height = 4, units = "in")
+p_vglm_num
+
+rm(i, list_plots)
+list_vglm<-ls(pattern = "vglm")
+rm(list = list_vglm)
+rm(list_vglm)
+list_plots<-ls(pattern = "p_by_")
+rm(list = list_plots)
+rm(list_plots)
+rm(adding_model_info, all_results, all_unadj, null, null_par, plot_by_predictor, plot_by_predictor_sorted, plot_by_response, predict_for_plots, terms, unadj_IMD, unadj_inc, unadj_region, terms, new_data_df,predictions_vglm, p_vglm_num, plot_by_numeric, all_results_num_habs)
+
+
+```
+
+
+
+## Intersectionalities
+```{r testing_interactions, echo = FALSE, eval =FALSE}
+
+## variables of interest
+## age, gender, income, urban status, ethnicity
+# 1. is there a signfiicant interaction between income and the other variables of interest?
+
+##what if male is the reference category? No difference here
+adj_comp_gender_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income*Gender +  Age_Band +  Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+adj_comp_gender_int_tbl<-glm_tbl_regression(adj_comp_gender_int)
+
+## Does this one work? Yes
+
+adj_comp_age_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income*Age_Band +  Gender +  Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+adj_comp_age_int_tbl<-glm_tbl_regression(adj_comp_age_int)
+##Does this one work? Yes
+
+adj_comp_ethnicity_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income* Ethnicity_cats  +  Gender +  Age_Band + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+adj_comp_ethnicity_int_tbl<-glm_tbl_regression(adj_comp_ethnicity_int)
+## Does this one work? Yes
+
+adj_comp_illness_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint +Income*Illnesses + Ethnicity_cats  +  Gender +  Age_Band + Marital_cats + car_cats + Gen_health_3cats +  covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+adj_comp_illness_int_tbl<-glm_tbl_regression(adj_comp_illness_int)
+## Does this one work? Yes
+
+t_merge<-tbl_merge(tbls = list(adj_comp_gender_int_tbl, adj_comp_age_int_tbl, adj_comp_ethnicity_int_tbl, adj_comp_illness_int_tbl), tab_spanner = c("Gender","Age","Ethnicity","Illness")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+
+t_merge
+
+rm(adj_comp_gender_int_tbl, adj_comp_age_int_tbl, adj_comp_ethnicity_int_tbl, adj_comp_illness_int_tbl, t_merge, adj_comp_gender_int, adj_comp_age_int, adj_comp_ethnicity_int, adj_comp_illness_int)
+
+## Gender interactions
+
+adj_comp_age_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income + Age_Band*Gender +  Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+adj_comp_age_int_tbl<-glm_tbl_regression(adj_comp_age_int)
+##does this one work? Yes
+
+adj_comp_ethnicity_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income + Ethnicity_cats*Gender +  Age_Band + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year+ BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+adj_comp_ethnicity_int_tbl<-glm_tbl_regression(adj_comp_ethnicity_int)
+## Does this one work? Yes
+
+
+adj_comp_illness_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint +Income + Illnesses* Gender + Ethnicity_cats +  Age_Band + Marital_cats + car_cats + Gen_health_3cats +  covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+adj_comp_illness_int_tbl<-glm_tbl_regression(adj_comp_illness_int)
+## Does this one work? Yes
+
+t_merge<-tbl_merge(tbls = list( adj_comp_age_int_tbl, adj_comp_ethnicity_int_tbl, adj_comp_illness_int_tbl), tab_spanner = c("Age","Ethnicity","Illness")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+print("Gender interactions")
+t_merge
+
+rm(adj_comp_gender_int_tbl, adj_comp_age_int_tbl, adj_comp_ethnicity_int_tbl, adj_comp_illness_int_tbl, t_merge, adj_comp_gender_int, adj_comp_age_int, adj_comp_ethnicity_int, adj_comp_illness_int)
+
+## What about three way interactions?
+## also need to check sample size
+#adj_comp_age_gender_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income_cats*Gender*Age_Band +  Ethnicity_cats + Marital_Status + children_2cats + car_cats + Dog + Gen_health_3cats + Illnesses + season + Year, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+## Nope
+
+#adj_comp_ethnicity_gender_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income_cats* Ethnicity_cats*Gender +  Age_Band + Marital_Status + children_2cats + car_cats + Dog + Gen_health_3cats + Illnesses + season + Year, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+## Nope
+
+#adj_comp_ethnicity_age_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income_cats* Ethnicity_cats*Age_Band +Gender   + Marital_Status + children_2cats + car_cats + Dog + Gen_health_3cats+ Illnesses + season + Year, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
+## yes
+
+## A three-water interaction between income, ethnicity and age was found to be signfiicant. As such, we created a composite variable? Actually why do we need to do this, can just do the interaction?
+##Anyway, first I need to check sample size
+
+#tbl_ethnicity_age_income<-table(pans_data$Income[no_missing_ind_gender],pans_data$Age_Band[no_missing_ind_gender], pans_data$Ethnicity_cats[no_missing_ind_gender] ) %>%
+#  as.data.frame() %>%
+ # rename('Income' = Var1, 'Ethnicity'=Var2, 'Age' = Var3) %>%
+#  pivot_wider(names_from = Income, values_from = Freq)
+#tbl_ethnicity_age_income
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+# RQ1, Outcome 3 - Quality satisfaction
+
+```{r glm_quality_satisfaction, echo = FALSE, warning = FALSE}
+
+## Create binary outcome for nearby nature opportunities
+mod_data$Nature_opp_met_bin<-mod_data$Nature_opp_met
+ind<-which(mod_data$Nature_opp_met_bin=="No need")
+
+## Exclude all those who have "no need" to be satisfied with nearby nature opportunities
+mod_data$Nature_opp_met_bin[ind]<-NA
+mod_data$Nature_opp_met_bin<-factor(mod_data$Nature_opp_met_bin, levels = c("Unsatisfied", "Satisfied"))
+
+## Fit all unadjusted models
+for (i in 1:length(predictor_names)){
+  mod_form<-reformulate(predictor_names[i], response = "Nature_opp_met_bin")
+  unadj_glm<-glm(mod_form, data = mod_data, contrasts = list(Region="contr.sum"), family = binomial )
+  assign(paste0("unadj_glm_", pred_code[i]), unadj_glm)
+  rm(unadj_glm, mod_form)
+}
+
+rm(i)
+
+## Fit adjusted model
+adj_glm_need<-glm(Nature_opp_met_bin~Region +Home_IMD_quint + Income  + ACNG_A_pred_ptc_wtd_percent_cats+ AH_A_pred_ptc_wtd_percent_cats + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions  + season, data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum"), family = binomial )
+
+adj_glm_need_num<-glm(Nature_opp_met_bin ~Region +Home_IMD_quint + Income  + num_habs_wtd + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions  + season , data = mod_data,weights = rescaled_weights, contrasts = list(Region="contr.sum"), family = binomial )
+
+unadj_glm_need_num<-glm(Nature_opp_met_bin ~ num_habs_wtd  , data = mod_data,weights = rescaled_weights, family = binomial )
+
+list_mods<-ls(pattern = "adj")
+
+## Generate gtsummary table for each fitted model
+for (i in 1:length(list_mods)){
+  mod_tbl<-bin_tbl_regression(get(list_mods[i]))
+  assign(paste0(list_mods[i], "_tbl"), mod_tbl)
+}
+
+## Merge all unadjusted and adjusted tables
+t_merge<-tbl_merge(tbls = list(unadj_glm_Region_tbl, unadj_glm_IMD_tbl, unadj_glm_Inc_tbl,unadj_glm_ACNG_tbl, unadj_glm_AH_tbl, unadj_glm_BMYW_tbl, unadj_glm_BUAG_tbl, unadj_glm_IG_tbl,  adj_glm_need_tbl), tab_spanner = c("Unadj - Region", "Unadj - IMD", "Unadj - income", "Unadj -ACNG", "Unadj -AH", "Unadj -BMYW","Unadj -BUAG","Unadj -IG", "Adj")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+
+t_merge
+rm(t_merge)
+
+print("Number of habitats")
+
+# Merge unadjusted and adjusted number of land covers model results
+t_merge<-tbl_merge(tbls = list(unadj_glm_need_num_tbl,adj_glm_need_num_tbl), tab_spanner = c("Unadj", "Adj")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+
+t_merge
+rm(t_merge)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+```{r plot_nature_need, echo = FALSE}
+
+## Tidy model output
+tidy_adj_glm_need<-tidy(adj_glm_need) %>%
+  as.data.frame()
+## Calculate odds ratios
+tidy_adj_glm_need$OR<-exp(coef(adj_glm_need))
+## Calculate confidence intervals
+confints_mods<-confint(adj_glm_need) %>%
+  as.data.frame()
+## Merge tidy model output and confidence intervals
+tidy_adj_glm_need<-data.frame(tidy_adj_glm_need, confints_mods)
+rm(confints_mods)
+names(tidy_adj_glm_need)[7:8]<-c("lwr", "upr")
+
+##Tidy model output, by number of land covers
+tidy_adj_glm_need_num<-tidy(adj_glm_need_num) %>%
+  as.data.frame()
+## Calculate odds ratios
+tidy_adj_glm_need_num$OR<-exp(coef(adj_glm_need_num))
+## Calculate confidence intervals
+confints_mods<-confint(adj_glm_need_num) %>%
+  as.data.frame()
+## Merge tidy model output and confidence intervals
+tidy_adj_glm_need_num<-data.frame(tidy_adj_glm_need_num, confints_mods)
+rm(confints_mods)
+names(tidy_adj_glm_need_num)[7:8]<-c("lwr", "upr")
+
+## Add Variable names and response options
+tidy_mod_list<-ls(pattern = "tidy_adj_glm")
+mod_list<-gsub("tidy_","",tidy_mod_list)
+for (i in 1:length(mod_list)){
+  mod_obj<-get(mod_list[i])
+  terms<-attr(mod_obj$terms, "term.labels")
+  tidy_mod_obj<-get(tidy_mod_list[i])
+  tidy_mod_obj$Variable<-NA
+  tidy_mod_obj$term_levels<-NA
+  for (j in 1:length(terms)){
+    ind<-grep(terms[j], tidy_mod_obj$term)
+    tidy_mod_obj$Variable[ind]<-terms[j]
+    tidy_mod_obj$term_levels[ind]<- gsub(terms[j], "",tidy_mod_obj$term[ind] )
+  }
+tidy_mod_obj$Variable<-as.factor(tidy_mod_obj$Variable) %>%
+  factor(levels=unique(tidy_mod_obj$Variable))
+tidy_mod_obj$term<-as.factor(tidy_mod_obj$term) %>%
+  factor(levels=unique(tidy_mod_obj$term))
+assign(tidy_mod_list[i], tidy_mod_obj)
+}
+
+rm(tidy_mod_obj, mod_obj, mod_list, tidy_mod_list)
+
+## Add Region levels
+ind<-grep("Region", tidy_adj_glm_need$Variable)
+ tidy_adj_glm_need$term_levels[ind]<-as.character(levels(mod_data$Region)[1:8])
+ind<-grep("Region",tidy_adj_glm_need_num$Variable)
+tidy_adj_glm_need_num$term_levels[ind]<-as.character(levels(mod_data$Region)[1:8])
+rm(ind)
+
+tidy_adj_glm_need$Variable<-gsub("Home_", "", tidy_adj_glm_need$Variable)
+tidy_adj_glm_need$Variable<-gsub("_quint", "", tidy_adj_glm_need$Variable)
+tidy_adj_glm_need$Variable<-gsub("_cats", "", tidy_adj_glm_need$Variable)
+tidy_adj_glm_need$Variable<-gsub("_A_pred_ptc_wtd_percent", "", tidy_adj_glm_need$Variable)
+
+
+tidy_adj_glm_need_num$Variable<-gsub("Home_", "", tidy_adj_glm_need_num$Variable)
+tidy_adj_glm_need_num$Variable<-gsub("_quint", "", tidy_adj_glm_need_num$Variable)
+tidy_adj_glm_need_num$Variable<-gsub("_cats", "", tidy_adj_glm_need_num$Variable)
+tidy_adj_glm_need_num$Variable<-gsub("_A_pred_ptc_wtd_percent", "", tidy_adj_glm_need_num$Variable)
+
+## plot 1 - region, household income and IMD coefficients based on the middle with habitats at LSOA
+
+tidy_adj_glm_need$term_levels<-as.factor(tidy_adj_glm_need$term_levels) 
+tidy_adj_glm_need$term_levels<-factor(tidy_adj_glm_need$term_levels,levels=levels(tidy_adj_glm_need$term_levels)[c(1:9,13:14, 20:24, 10:12,15:19,25:50)])
+
+ind<-which(tidy_adj_glm_need$Variable=="ACNG")
+tidy_adj_glm_need$Variable[ind]<-"ACN grassland"
+ind<-which(tidy_adj_glm_need$Variable=="AH")
+tidy_adj_glm_need$Variable[ind]<-"Arable"
+ind<-which(tidy_adj_glm_need$Variable=="BMYW")
+tidy_adj_glm_need$Variable[ind]<-"Woodland"
+ind<-which(tidy_adj_glm_need$Variable=="IG")
+tidy_adj_glm_need$Variable[ind]<-"Improved grassland"
+ind<-which(tidy_adj_glm_need$Variable=="BUAG")
+tidy_adj_glm_need$Variable[ind]<-"Built-up and Gardens"
+rm(ind)
+
+tidy_adj_glm_need$Variable<-as.factor(tidy_adj_glm_need$Variable)
+tidy_adj_glm_need$Variable<-factor(tidy_adj_glm_need$Variable,levels = c("ACN grassland", "Built-up and Gardens", "Arable","IMD",  "Woodland" ,"Income", "Improved grassland" ,"Region"))
+
+## Add significance info
+tidy_adj_glm_need$Significance<-"Not significant"
+ind<-which(tidy_adj_glm_need$p.value<0.05)
+tidy_adj_glm_need$Significance[ind]<-"Significant"
+tidy_adj_glm_need$Significance<-as.factor(tidy_adj_glm_need$Significance)
+tidy_adj_glm_need$lwr_exp<-exp(tidy_adj_glm_need$lwr)
+tidy_adj_glm_need$upr_exp<-exp(tidy_adj_glm_need$upr)
+
+## Plot odds ratios predicting satisfaction with nearby nature opportunities by different land covers
+p<-ggplot(tidy_adj_glm_need[2:37,], aes(x = term_levels, y= OR, ymin = lwr_exp, ymax = upr_exp))+
+ geom_pointrange(aes(shape = Significance)) +
+  scale_shape_manual(values = c(1, 19))+
+  theme_minimal()+
+  facet_wrap(facets=vars(Variable), drop = TRUE, scales = "free_y", ncol = 2) +
+  coord_flip() +
+  geom_hline(yintercept=1 ,linetype="dashed") +
+  xlab("")+
+  ylab("Odds ratio")
+
+p
+setwd(Figures_wd)
+ggsave("RQ1_nature_sat_adj_ORs.png", dpi = 300, height = 7.5, width = 8)
+
+predict_num_habs<- predict_response(adj_glm_need_num, terms = "num_habs_wtd")
+
+
+## plot probability of satisfaction with nearby nature opportunities by number of land covers
+plot(predict_num_habs, facets = FALSE, show_title= FALSE)+
+  xlab("Number of habitats")+
+  ylab("Predicted probability")+
+  xlim(c(1, 17))+
+  ylim(c(0.65, 0.85))
+
+setwd(Figures_wd)
+ggsave("RQ1_nature_sat_pred_probs_num_habs.png", dpi = 300, height = 4, width = 4.5)
+
+rm(p, i, j, ind, list_mods, mod_tbl, terms, predictor_names, predict_num_habs, short_lsoas_habs, predictor_labels, pred_code)
+rm(list = ls(pattern = "unadj_glm"))
+rm(list = ls(pattern = "adj_glm"))
+
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+# RQ2, Outcome 2 - Life satisfaction
+
+```{r life_sati, echo = FALSE, warning = FALSE}
+
+## Set reference level 
+mod_data$M1_Q5_g<-relevel(mod_data$M1_Q5_g, ref = "Neither agree nor disagree")
+
+RQ2_preds<-c("M1_Q5_g","M1_Q5_comp", "Nature_opp_met_bin")
+RQ2_pred_names<-c("good_nature", "qual_comp", "nature_sat")
+
+for (i in 1:length(RQ2_preds)){
+  ## For each perceived green and natural space quality predictor, fit an unadjusted model predicting life satisfaction
+  formula <- reformulate(RQ2_preds[i],response = "Wellbeing_sat_num")
+  RQ2_unadj<-glm(formula, na.action = na.omit,
+                 data = mod_data, weights = rescaled_weights)
+  assign(paste0("unadj_", RQ2_pred_names[i]), RQ2_unadj)
+  RQ2_unadj_tbl<-glm_tbl_regression(RQ2_unadj)
+  assign(paste0("unadj_", RQ2_pred_names[i], "_tbl"),  RQ2_unadj_tbl)
+  rm(RQ2_unadj,  RQ2_unadj_tbl)
+  ## For each perceived green and natural space quality predictor, fit an adjusted model predicting life satisfaction
+  formula <- reformulate(c(RQ2_preds[i], "Region + Home_IMD_quint + Income + Gender +  Age_Band +  Ethnicity_cats +  Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions  + season"),response = "Wellbeing_sat_num")
+  RQ2_adj<-glm(formula, na.action = na.omit,
+               data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum"))
+  assign(paste0("adj_", RQ2_pred_names[i]), RQ2_adj)
+  RQ2_adj_tbl<-glm_tbl_regression(RQ2_adj)
+  assign(paste0("adj_", RQ2_pred_names[i], "_tbl"),  RQ2_adj_tbl)
+  rm(RQ2_adj,  RQ2_adj_tbl)
+}
+
+rm(formula, i)
+
+## Merge all results tables
+t_merge<-tbl_merge(tbls = list(unadj_good_nature_tbl,adj_good_nature_tbl,unadj_qual_comp_tbl,adj_qual_comp_tbl,unadj_nature_sat_tbl,adj_nature_sat_tbl), tab_spanner = c("Unadj - Nature opps", "Adj - Nature opps", "Unadj - comp", "Adj - Comp" ,"Unadj - Sat", "Adj- Sat")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+## print model results table
+t_merge   
+
+rm(list =ls(pattern = "adj.*_tbl"))
+rm(list =ls(pattern = "unadj"))
+rm(t_merge)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+```{r plot_models_RQ2_outcome1, echo = FALSE}
+
+## For each perceived green and natural space quality indicator, find the ajdusted models from the environment
+mod_list<-ls(pattern= "adj_")
+mod_list<-mod_list[c(1, 3, 2)]
+
+## For each perceived green and natural space quality predictor, tidy the model output and add confidence intervals for the purposes of plotting
+for (i in 1:length(mod_list)){
+  mod_obj<-get(mod_list[i])
+  ## Tidy the model output
+  tidy_mod<-tidy( mod_obj) %>%
+  as.data.frame()%>%
+  mutate(Variable =RQ2_pred_names[i])
+  ## Add confidence intervals
+  confint_mod<-confint(mod_obj) %>%
+  as.data.frame() %>%
+  mutate(Variable =RQ2_pred_names[i])
+  confint_mod$term<-tidy_mod$term
+  tidy_mod<-merge(tidy_mod, confint_mod)
+  rm(confint_mod)
+  assign(paste0("tidy_",mod_list[i] ), tidy_mod)
+  rm(tidy_mod, mod_obj)
+}
+
+rm(i, mod_list)
+## Bind together all tidied adjusted model outputs
+tidy_mod_list<-ls(pattern = "tidy_adj")
+all_tidy_mods <- do.call(rbind, mget(tidy_mod_list))
+rm(list = tidy_mod_list)
+rm(tidy_mod_list)
+
+names(all_tidy_mods)[7:8]<-c("lwr", "upr")
+
+## Select only rows associated with each key predictor
+ind<-grep("M1_Q5_.*|Nature_opp_met_bin", all_tidy_mods$term)
+all_tidy_mods<-all_tidy_mods[ind,]
+all_tidy_mods$term<-gsub("M1_Q5_g", "",all_tidy_mods$term)
+all_tidy_mods$term<-gsub("Nature_opp_met_bin","", all_tidy_mods$term)
+
+## Add significance categories to data.frame for plotting purposes
+ind<-which(all_tidy_mods$p.value<0.05)
+all_tidy_mods$Significance<-"Not significant"
+all_tidy_mods$Significance[ind]<-"Significant"
+all_tidy_mods$term<-as.character(all_tidy_mods$term)
+all_tidy_mods$term[6]<-"Quality composite"
+all_tidy_mods$term<-as.factor(all_tidy_mods$term)
+all_tidy_mods$term<-factor(all_tidy_mods$term, levels = c("Strongly disagree", "Disagree", "Agree", "Strongly agree", "Satisfied","Quality composite"))
+
+## Add facet labels to data.frame for plotting purposes
+term=c("good_nature", "qual_comp", "nature_sat")
+facet_labels<-c("Good nature\nopportunities","Quality\ncomposite","Nearby\nnature\nsatisfaction")
+facet_names_df<- data.frame(term, facet_labels)
+rm(term, facet_labels)
+ind<-match(all_tidy_mods$Variable,facet_names_df$term)
+all_tidy_mods$facet_labels<-facet_names_df$facet_labels[ind]
+rm(ind, facet_names_df)
+
+all_tidy_mods$facet_labels<-as.factor(all_tidy_mods$facet_labels)
+all_tidy_mods$facet_labels<-factor(all_tidy_mods$facet_labels, levels = c("Good nature\nopportunities"  , "Quality\ncomposite", "Nearby\nnature\nsatisfaction"))
+
+## Plot coefficients associated with eahc predictor on the same plot
+p<-ggplot(all_tidy_mods, aes(x = term, y = estimate, ymin = lwr, ymax = upr))+
+  geom_pointrange(aes(shape = Significance))+
+  theme_minimal()+
+  facet_grid(rows = vars(facet_labels), drop = TRUE, scales = "free_y",space = "free")+
+  coord_flip()+
+  ylab("Beta coefficient")+
+  geom_hline(yintercept=0 ,linetype="dashed")+
+  xlab("")
+  
+## Save figure
+p
+setwd(Figures_wd)
+ggsave("RQ2_coefs_life_sat_adj.png", dpi = 300, height = 4, width = 6)
+
+rm(p, all_tidy_mods)
+```
+
+
+
+<!---BLOCK_LANDSCAPE_START--->
+# RQ2, Outcome 2 - Visit frequency
+
+```{r visit_freq, echo = FALSE, warning = FALSE}
+
+## Set reference levle of outcome
+mod_data$visit_freq_bin<-relevel(mod_data$visit_freq_bin, ref = "<1 a week")
+
+for (i in 1:length(RQ2_preds)){
+  ## For each perceived green and natural space quality predictor fit an unadjusted model predicting visit frequency as a binary outcome
+  formula <- reformulate(RQ2_preds[i],response = "visit_freq_bin")
+  RQ2_unadj<-glm(formula, na.action = na.omit,
+                 data = mod_data, weights = rescaled_weights, family = "binomial")
+  assign(paste0("unadj_", RQ2_pred_names[i]), RQ2_unadj)
+  ## Generate summary table with custom function
+  RQ2_unadj_tbl<-bin_tbl_regression(RQ2_unadj)
+  assign(paste0("unadj_", RQ2_pred_names[i], "_tbl"),  RQ2_unadj_tbl)
+  rm(RQ2_unadj,  RQ2_unadj_tbl)
+  
+    ## For each perceived green and natural space quality predictor fit an adjusted model predicting visit frequency as a binary outcome
+  formula <- reformulate(c(RQ2_preds[i], "Region + Home_IMD_quint + Income + Gender +  Age_Band +  Ethnicity_cats +  Marital_cats +  car_cats+ Dog +  Gen_health_3cats  + Illnesses + Year +covid_restrictions + season"),response = "visit_freq_bin")
+  RQ2_adj<-glm(formula, na.action = na.omit,
+               data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum"), family = "binomial")
+  assign(paste0("adj_", RQ2_pred_names[i]), RQ2_adj)
+  ## Produce summary table with custom function
+  RQ2_adj_tbl<-bin_tbl_regression(RQ2_adj)
+  assign(paste0("adj_", RQ2_pred_names[i], "_tbl"),  RQ2_adj_tbl)
+  rm(RQ2_adj,  RQ2_adj_tbl)
+}
+
+rm(formula, i)
+
+## Merge all unadjusted and adjusted model tables
+t_merge<-tbl_merge(tbls = list(unadj_good_nature_tbl,adj_good_nature_tbl,unadj_qual_comp_tbl,adj_qual_comp_tbl,unadj_nature_sat_tbl,adj_nature_sat_tbl), tab_spanner = c("Unadj - Nature opps", "Adj - Nature opps", "Unadj - comp", "Adj - Comp" ,"Unadj - Sat", "Adj- Sat")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+## print model summary table
+t_merge   
+
+rm(list =ls(pattern = "adj.*_tbl"))
+rm(list =ls(pattern = "unadj"))
+rm(t_merge)
+
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+```{r plot_models_RQ2_visit_freq, echo = FALSE, warning = FALSE}
+
+
+## Get adjusted model objects
+mod_list<-ls(pattern= "adj_")
+mod_list<-mod_list[c(1, 3, 2)]
+for (i in 1:length(mod_list)){
+  mod_obj<-get(mod_list[i])
+  ## Tidy model object
+  tidy_mod<-tidy( mod_obj) %>%
+  as.data.frame()%>%
+    ## Add odds ratios
+  mutate(Variable =RQ2_pred_names[i]) %>%
+    mutate(OR = exp(estimate))
+  ## Calculate odds ratio confidence intervals
+  confint_mod<-exp(confint(mod_obj)) %>%
+  as.data.frame() %>%
+  mutate(Variable =RQ2_pred_names[i])
+  confint_mod$term<-tidy_mod$term
+  ## Merge tidy model results and confidence intervals
+  tidy_mod<-merge(tidy_mod, confint_mod)
+  rm(confint_mod)
+  assign(paste0("tidy_",mod_list[i] ), tidy_mod)
+  rm(tidy_mod, mod_obj)
+}
+
+rm(i, mod_list)
+tidy_mod_list<-ls(pattern = "tidy_adj")
+## Merge together all tidied adjusted model results tables
+all_tidy_mods <- do.call(rbind, mget(tidy_mod_list))
+rm(list = tidy_mod_list)
+rm(tidy_mod_list)
+
+names(all_tidy_mods)[8:9]<-c("lwr", "upr")
+
+ind<-grep("M1_Q5_.*|Nature_opp_met_bin", all_tidy_mods$term)
+all_tidy_mods<-all_tidy_mods[ind,]
+all_tidy_mods$term<-gsub("M1_Q5_g", "",all_tidy_mods$term)
+all_tidy_mods$term<-gsub("Nature_opp_met_bin","", all_tidy_mods$term)
+
+## Add significance information to model results table
+ind<-which(all_tidy_mods$p.value<0.05)
+all_tidy_mods$Significance<-"Not significant"
+all_tidy_mods$Significance[ind]<-"Significant"
+
+## Setting up information for plotting
+all_tidy_mods$term<-as.character(all_tidy_mods$term)
+all_tidy_mods$term[6]<-"Quality composite"
+all_tidy_mods$term<-as.factor(all_tidy_mods$term)
+all_tidy_mods$term<-factor(all_tidy_mods$term, levels = c("Strongly disagree", "Disagree", "Agree", "Strongly agree", "Satisfied","Quality composite"))
+term=c("good_nature", "qual_comp", "nature_sat")
+facet_labels<-c("Good nature\nopportunities","Quality\ncomposite","Nearby\nnature\nsatisfaction")
+facet_names_df<- data.frame(term, facet_labels)
+rm(term, facet_labels)
+ind<-match(all_tidy_mods$Variable,facet_names_df$term)
+all_tidy_mods$facet_labels<-facet_names_df$facet_labels[ind]
+rm(ind, facet_names_df)
+
+all_tidy_mods$facet_labels<-as.factor(all_tidy_mods$facet_labels)
+all_tidy_mods$facet_labels<-factor(all_tidy_mods$facet_labels, levels = c("Good nature\nopportunities"  , "Quality\ncomposite", "Nearby\nnature\nsatisfaction"))
+
+p<-ggplot(all_tidy_mods, aes(x = term, y = OR, ymin = lwr, ymax = upr))+
+  geom_pointrange(aes(shape = Significance))+
+  scale_shape_manual(values=c(1, 19))+
+  theme_minimal()+
+  facet_grid(rows = vars(facet_labels), drop = TRUE, scales = "free_y",space = "free")+
+  coord_flip()+
+  ylab("Odds Ratio")+
+  geom_hline(yintercept=1 ,linetype="dashed")+
+  xlab("")
+  
+p
+setwd(Figures_wd)
+ggsave("RQ2_OR_visit_freq_adj.png", dpi = 300, height = 4, width = 6)
+
+rm(p, all_tidy_mods, adj_good_nature, adj_nature_sat, adj_qual_comp, all_results_num_habs)
+```
+
+
+```{r sem, echo = FALSE, eval = FALSE}
+
+## convert variables to ordered factors so they can be easily converted to numeric
+pans_data$Home_IMD_quint_ord<-ordered(pans_data$Home_IMD_quint)
+pans_data$Home_IMD_quint_num<-as.numeric(pans_data$Home_IMD_quint_ord)
+
+pans_data$income_ord<-ordered(pans_data$Income)
+pans_data$income_num<-as.numeric(pans_data$income_ord)
+
+pans_data$visit_freq_bin_ord<-ordered(pans_data$visit_freq_bin)
+pans_data$visit_freq_bin_num<-as.numeric(pans_data$visit_freq_bin_ord)-1
+
+## Create dummy variables for categorial variables
+region_dummies<-dummy_cols(pans_data$Region)[,2:10]
+names(region_dummies)<-gsub(".data_", "", names(region_dummies))
+names(region_dummies)<-gsub(" ", "_", names(region_dummies))
+pans_data<-cbind(pans_data, region_dummies)
+
+age_dummies<-dummy_cols(pans_data$Age_Band)[,2:6]
+names(age_dummies)<-gsub(".data_", "a", names(age_dummies))
+names(age_dummies)<-gsub("-", "_", names(age_dummies))
+names(age_dummies)<-gsub("\\+", "", names(age_dummies))
+pans_data<-cbind(pans_data, age_dummies)
+rm(region_dummies, age_dummies)
+
+year_dummies<-dummy_cols(pans_data$Year)[,2:5]
+names(year_dummies)<-gsub(".data_", "Y", names(year_dummies))
+pans_data<-cbind(pans_data,year_dummies)
+rm(year_dummies)
+
+covid_dummies<-dummy_cols(pans_data$covid_restrictions)[,2:5]
+names(covid_dummies)<-gsub(".data_", "", names(covid_dummies))
+names(covid_dummies)<-gsub(" ", "_", names(covid_dummies))
+pans_data<-cbind(pans_data,covid_dummies)
+rm(covid_dummies)
+
+## Sort factor levels and convert to numeric where necessary
+pans_data$Gender_2levs<-factor(pans_data$Gender, levels = c("Female", "Male"))
+
+pans_data$Gen_health_3cats<-factor(pans_data$Gen_health_3cats, levels = c("Bad","Fair","Good"))
+pans_data$Gen_health_3cats_ord<-ordered(pans_data$Gen_health_3cats)
+pans_data$Gen_health_3cats_num<-as.numeric(pans_data$Gen_health_3cats_ord)
+
+qual_model <- '
+# latent variable
+Green_space_quality =~ M1_Q5_a_ord + M1_Q5_b_ord + M1_Q5_c_ord + M1_Q5_d_ord + M1_Q5_e_ord + M1_Q5_f_ord + M1_Q5_g_ord
+
+# Regressions
+## south east excluded from region, 16 - 24 excluded from age, 2020 excluded from year, no restrictions excluded from covid restrictions
+
+visit_freq_bin_num ~ Green_space_quality + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs  + a25_39 + a40_54 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats_ord + Illnesses + Y2021 + Y2022 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown
+
+Wellbeing_sat_num ~ Green_space_quality + visit_freq_bin_num + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs + a25_39 + a40_54 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats_ord + Illnesses + Y2021 + Y2022  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown
+
+Green_space_quality ~ Home_IMD_quint_num + income_num + + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs + a25_39 + a40_54 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats_ord + Illnesses + Y2021 + Y2022  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown
+'
+
+fit <- sem(qual_model, data = mod_data[no_missing_ind_gender,])
+
+setwd(Results_wd)
+## Create standardised coefficients table
+## Presented in supp mats
+tidy_fit_stand<-standardizedSolution(fit) 
+
+## There are hundreds of rows, so only included key rows
+ind<-grep("Green_space_quality|visit_freq_bin_num|Wellbeing_sat_num", tidy_fit_stand$lhs)
+tidy_fit_stand<-tidy_fit_stand[ind,]
+rm(ind)
+tidy_fit_stand<-pivot_wider(tidy_fit_stand,id_cols = rhs, names_from = lhs, values_from = c( est.std,se, pvalue, ci.lower, ci.upper))
+
+cols_green<-grep("Green", names(tidy_fit_stand))
+cols_sat<-grep("Wellbeing", names(tidy_fit_stand))
+cols_visit<-grep("visit", names(tidy_fit_stand))
+tidy_fit_stand<-tidy_fit_stand[, c(1, cols_green, cols_visit, cols_sat)]
+rm(cols_green, cols_visit, cols_sat)
+
+tidy_fit_stand[,2:NCOL(tidy_fit_stand)]<-round(tidy_fit_stand[,2:NCOL(tidy_fit_stand)], digits =3)
+
+col_ind<-grep("pvalue", names(tidy_fit_stand))
+tidy_fit_stand$est.stars_Green_space_quality<-round(tidy_fit_stand$est.std_Green_space_quality, digits =2)
+tidy_fit_stand$est.stars_visit_freq_bin_num<-round(tidy_fit_stand$est.std_visit_freq_bin_num, digits =2)
+tidy_fit_stand$est.stars_Wellbeing_sat_num<-round(tidy_fit_stand$est.std_Wellbeing_sat_num, digits =2)
+
+stars_ind<-grep("stars", names(tidy_fit_stand))
+stars_names<-names(tidy_fit_stand)[stars_ind]
+for (i in 1:length(col_ind)){
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.001)
+  tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "***")
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.01 & tidy_fit_stand[col_ind[i]]>=0.001)
+   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind],"**")
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.05 & tidy_fit_stand[col_ind[i]]>=0.01)
+   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "*")
+}
+
+rm(i, col_ind, stars_ind, stars_names)
+tidy_fit_stand<-tidy_fit_stand[,c(1:2, 17, 3:7, 18, 8:12, 19, 13:16)]
+
+write.csv(tidy_fit_stand, "tidy_sem_results_standardised.csv")
+
+tidy_fit_stand_flex<-flextable(tidy_fit_stand)
+tidy_fit_stand_flex
+
+rm(tidy_fit_stand, tidy_fit_stand_flex)
+
+### Prepare unstandardised results table, presented in main manuscript
+tidy_fit<-tidySEM::table_results(fit , digits = 3)
+ind<-grep("M1_Q5_comp|visit_freq_bin_num|Wellbeing_sat_num", tidy_fit$label)
+tidy_fit<-tidy_fit[ind,]
+rm(ind)
+ind<-grep("Variances|Means", tidy_fit$label)
+tidy_fit<-tidy_fit[-ind,]
+rm(ind)
+
+tidy_fit$Predictor<-NA
+tidy_fit$Outcome<-NA
+for (i in 1:NROW(tidy_fit)){
+  end_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[1]]
+  tidy_fit$Outcome[i]<-substr(tidy_fit$label[i], 1, end_char-1)
+  rm(end_char)
+  start_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[2]]
+  tidy_fit$Predictor[i]<-substr(tidy_fit$label[i], start_char+1, nchar(tidy_fit$label[i]))
+  rm(start_char)
+}
+
+
+tidy_fit<-pivot_wider(tidy_fit,id_cols = Predictor, names_from = Outcome, values_from = c( est_sig,se, pval,confint))
+
+cols_green<-grep("Green", names(tidy_fit))
+cols_sat<-grep("Wellbeing", names(tidy_fit))
+cols_visit<-grep("visit", names(tidy_fit))
+tidy_fit<-tidy_fit[, c(1, cols_green, cols_visit, cols_sat)]
+rm(cols_green, cols_visit, cols_sat)
+
+tidy_fit_flex<-flextable(tidy_fit) %>%
+  colformat_num(j = c("pval_Green_space_quality", "pval_visit_freq_bin_num",   "pval_Wellbeing_sat_num"  ), digits = 3)
+## print table
+tidy_fit_flex
+
+## save table
+setwd(Results_wd)
+write.csv(tidy_fit, "tidy_sem_results_unstandardised.csv")
+rm(tidy_fit, tidy_fit_flex)
+
+#summary(fit, standardized=TRUE, fit.measures=TRUE)
+#fitMeasures(fit, standardized=TRUE)
+#modindices(fit,sort=TRUE)
+
+## plot standardised results
+## This plot is too complicated though as it includes all variables
+## I did it manually in the paper
+p<-lavaanPlot(fit, coefs = TRUE, sig = 0.05, stand = TRUE, stars = "regress")
+
+p
+rm(p)
+## https://cran.r-project.org/web/packages/lavaanPlot/vignettes/Intro_to_lavaanPlot.html
+```
+
+## Structural equation models
+### By different land covers
+```{r sem_green_comp, echo = FALSE}
+
+## convert variables to ordered factors so they can be easily converted to numeric
+mod_data$Home_IMD_quint_ord<-ordered(mod_data$Home_IMD_quint)
+mod_data$Home_IMD_quint_num<-as.numeric(mod_data$Home_IMD_quint_ord)
+
+mod_data$income_ord<-ordered(mod_data$Income)
+mod_data$income_num<-as.numeric(mod_data$income_ord)
+
+mod_data$visit_freq_bin<-relevel(mod_data$visit_freq_bin, ref = "<1 a week")
+mod_data$visit_freq_bin_ord<-ordered(mod_data$visit_freq_bin)
+mod_data$visit_freq_bin_num<-as.numeric(mod_data$visit_freq_bin_ord)-1
+
+## Create dummy variables for categorial variables
+region_dummies<-dummy_cols(mod_data$Region)[,2:10]
+names(region_dummies)<-gsub(".data_", "", names(region_dummies))
+names(region_dummies)<-gsub(" ", "_", names(region_dummies))
+mod_data<-cbind(mod_data, region_dummies)
+
+age_dummies<-dummy_cols(mod_data$Age_Band)[,2:6]
+names(age_dummies)<-gsub(".data_", "a", names(age_dummies))
+names(age_dummies)<-gsub("-", "_", names(age_dummies))
+names(age_dummies)<-gsub("\\+", "", names(age_dummies))
+mod_data<-cbind(mod_data, age_dummies)
+rm(region_dummies, age_dummies)
+
+year_dummies<-dummy_cols(mod_data$Year)[,2:5]
+names(year_dummies)<-gsub(".data_", "Y", names(year_dummies))
+mod_data<-cbind(mod_data,year_dummies)
+rm(year_dummies)
+
+covid_dummies<-dummy_cols(mod_data$covid_restrictions)[,2:5]
+names(covid_dummies)<-gsub(".data_", "", names(covid_dummies))
+names(covid_dummies)<-gsub(" ", "_", names(covid_dummies))
+mod_data<-cbind(mod_data,covid_dummies)
+rm(covid_dummies)
+
+season_dummies<-dummy_cols(mod_data$season)[,2:5]
+names(season_dummies)<-gsub(".data_", "", names(season_dummies))
+names(season_dummies)<-gsub(" ", "_", names(season_dummies))
+mod_data<-cbind(mod_data,season_dummies)
+rm(season_dummies)
+
+## Sort factor levels and convert to numeric where necessary
+mod_data$Gender_2levs<-factor(mod_data$Gender, levels = c("Female", "Male"))
+
+mod_data$Gen_health_3cats<-factor(mod_data$Gen_health_3cats, levels = c("Bad","Fair","Good"))
+mod_data$Gen_health_3cats_ord<-ordered(mod_data$Gen_health_3cats)
+mod_data$Gen_health_3cats_num<-as.numeric(mod_data$Gen_health_3cats_ord)
+
+mod_data$ACNG_cats_ord<-ordered(mod_data$ACNG_A_pred_ptc_wtd_percent_cats)
+mod_data$ACNG_cats_num<-as.numeric(mod_data$ACNG_cats_ord)
+
+mod_data$AH_cats_ord<-ordered(mod_data$AH_A_pred_ptc_wtd_percent_cats)
+mod_data$AH_cats_num<-as.numeric(mod_data$AH_cats_ord)
+
+mod_data$BMYW_cats_ord<-ordered(mod_data$BMYW_A_pred_ptc_wtd_percent_cats)
+mod_data$BMYW_cats_num<-as.numeric(mod_data$BMYW_cats_ord)
+
+mod_data$BUAG_cats_ord<-ordered(mod_data$BUAG_A_pred_ptc_wtd_percent_cats)
+mod_data$BUAG_cats_num<-as.numeric(mod_data$BUAG_cats_ord)
+
+mod_data$IG_cats_ord<-ordered(mod_data$IG_A_pred_ptc_wtd_percent_cats)
+mod_data$IG_cats_num<-as.numeric(mod_data$IG_cats_ord)
+
+## Specify model
+model_spec <- ' 
+# direct effect
+             Wellbeing_sat_num ~1+ b2*M1_Q5_comp + b1*visit_freq_bin_num + c1*ACNG_cats_num + c2*AH_cats_num + c3*BMYW_cats_num + c4*BUAG_cats_num + c5*IG_cats_num + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs + a16_24 + a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+             
+           # mediators
+  
+            M1_Q5_comp ~1+ h1q*ACNG_cats_num + h2q*AH_cats_num + h3q*BMYW_cats_num + h4q*BUAG_cats_num + h5q*IG_cats_num + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs +  a16_24 + a25_39 + a55_64 + a65+ Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+            
+             visit_freq_bin_num ~ 1+ d*M1_Q5_comp + h1v*ACNG_cats_num + h2v*AH_cats_num + h3v*BMYW_cats_num + h4v*BUAG_cats_num + h5v*IG_cats_num + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs  +  a16_24 + a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+
+            
+           # indirect effects (a*b)
+           
+             h1vb1 := h1v*b1
+             h2vb1 := h2v*b1
+             h3vb1 := h3v*b1
+             h4vb1 := h4v*b1
+             h5vb1 := h5v*b1
+             
+             h1qb2 := h1q*b2
+             h2qb2 := h2q*b2
+             h3qb2 := h3q*b2
+             h4qb2 := h4q*b2
+             h5qb2 := h5q*b2
+             
+             h1qdb1 := h1q*d*b1
+             h2qdb1 := h2q*d*b1
+             h3qdb1 := h3q*d*b1
+             h4qdb1 := h4q*d*b1
+             h5qdb1 := h5q*d*b1
+             
+             ## All indirect
+             ttl_indirect_h1 := (h1v*b1) + (h1q*b2) + (h1q*d*b1)
+             ttl_indirect_h2 := (h2v*b1) + (h2q*b2) + (h2q*d*b1)
+             ttl_indirect_h3 := (h3v*b1) + (h3q*b2) + (h3q*d*b1)
+             ttl_indirect_h4 := (h4v*b1) + (h4q*b2) + (h4q*d*b1)
+             ttl_indirect_h5 := (h5v*b1) + (h5q*b2) + (h5q*d*b1)
+             
+             
+           # total effects
+             totalh1 := (h1v*b1) + (h1q*b2) + (h1q*d*b1) + c1
+             totalh2 := (h2v*b1) + (h2q*b2) + (h2q*d*b1) + c2
+             totalh3 := (h3v*b1) + (h3q*b2) + (h3q*d*b1) + c3
+             totalh4 := (h4v*b1) + (h4q*b2) + (h4q*d*b1) + c4
+             totalh5 := (h5v*b1) + (h5q*b2) + (h5q*d*b1) + c5
+         '
+
+## Fit SEM
+fit <- sem(model_spec, data = mod_data,sampling.weights  = "rescaled_weights")
+
+setwd(Results_wd)
+## Create standardised coefficients table
+## Presented in supp mats
+tidy_fit_stand<-standardizedSolution(fit)
+
+ind<-which(tidy_fit_stand$op== ":=")
+pathways<-tidy_fit_stand[ind,] 
+
+col_ind<-grep("pvalue", names(pathways))
+pathways$est_stars<-round(pathways$est.std, digits =3)
+## Add stars to indicate significance
+stars_ind<-grep("stars", names(pathways))
+stars_names<-names(pathways)[stars_ind]
+for (i in 1:length(col_ind)){
+  ind<-which(pathways[col_ind[i]]<0.001)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind], "***")
+  ind<-which(pathways[col_ind[i]]<0.01 & pathways[col_ind[i]]>=0.001)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind],"**")
+  ind<-which(pathways[col_ind[i]]<0.05 & pathways[col_ind[i]]>=0.01)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind], "*")
+}
+
+rm(ind, i, stars_names, stars_ind)
+
+pathways<- pathways %>%
+  mutate(conf_int=paste0(round(ci.lower, digits = 3), ",",round(ci.upper, digits = 3))) %>%
+  select(rhs,est_stars, conf_int)
+
+setwd(Results_wd)
+write.csv(pathways, "tidy_sem_pathways_standardised.csv")
+pathways_flex<-flextable(pathways)
+print("Standardised pathways - different land covers")
+pathways_flex
+rm(pathways, pathways_flex)
+
+## There are hundreds of rows, so only included key rows
+ind<-grep("M1_Q5_comp|visit_freq_bin_num|Wellbeing_sat_num", tidy_fit_stand$lhs)
+tidy_fit_stand<-tidy_fit_stand[ind,]
+rm(ind)
+tidy_fit_stand<-pivot_wider(tidy_fit_stand,id_cols = rhs, names_from = lhs, values_from = c( est.std,se, pvalue, ci.lower, ci.upper))
+
+## Select relevant columns
+cols_green<-grep("M1_Q5_comp", names(tidy_fit_stand))
+cols_sat<-grep("Wellbeing", names(tidy_fit_stand))
+cols_visit<-grep("visit", names(tidy_fit_stand))
+tidy_fit_stand<-tidy_fit_stand[, c(1, cols_green, cols_visit, cols_sat)]
+rm(cols_green, cols_visit, cols_sat)
+
+tidy_fit_stand[,2:NCOL(tidy_fit_stand)]<-round(tidy_fit_stand[,2:NCOL(tidy_fit_stand)], digits =3)
+
+col_ind<-grep("pvalue", names(tidy_fit_stand))
+tidy_fit_stand$est.stars_Green_space_quality<-round(tidy_fit_stand$est.std_M1_Q5_comp, digits =2)
+tidy_fit_stand$est.stars_visit_freq_bin_num<-round(tidy_fit_stand$est.std_visit_freq_bin_num, digits =2)
+tidy_fit_stand$est.stars_Wellbeing_sat_num<-round(tidy_fit_stand$est.std_Wellbeing_sat_num, digits =2)
+## Add stars to indicate significance
+stars_ind<-grep("stars", names(tidy_fit_stand))
+stars_names<-names(tidy_fit_stand)[stars_ind]
+for (i in 1:length(col_ind)){
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.001)
+  tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "***")
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.01 & tidy_fit_stand[col_ind[i]]>=0.001)
+   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind],"**")
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.05 & tidy_fit_stand[col_ind[i]]>=0.01)
+   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "*")
+}
+
+rm(i, col_ind, stars_ind, stars_names)
+tidy_fit_stand<-tidy_fit_stand[,c(1:2, 17, 3:7, 18, 8:12, 19, 13:16)]
+
+write.csv(tidy_fit_stand, "tidy_sem_results_standardised.csv")
+
+tidy_fit_stand_flex<-flextable(tidy_fit_stand)
+# print standardised SEM model results table
+print("standardised SEM model results table")
+tidy_fit_stand_flex
+
+rm(tidy_fit_stand_flex)
+
+
+fit_stats <- summary(fit, standardized = TRUE, fit.measures = TRUE)$fit
+wanted <- c("chisq", "df", "cfi", "tli", "ntotal", "rmsea")
+fit_stats_selected <- fit_stats[wanted]
+print("Fit measures for standardised SEM")
+fit_stats_selected
+rm(fit_stats, wanted, fit_stats_selected)
+
+### Prepare unstandardised results table, presented in main manuscript
+sum_sem<-summary(fit)
+ind<-which(sum_sem$pe$lhs=="h1vb1")
+unstandard_indirect<-sum_sem$pe[ind:NROW(sum_sem$pe),] 
+unstandard_indirect[,6:9]<-round(unstandard_indirect[,6:9], digits = 3)
+write.csv(unstandard_indirect, "unstandardised_indirect_totals.csv")
+rm(sum_sem, ind, unstandard_indirect)
+
+tidy_fit<-tidySEM::table_results(fit , digits = 3)
+ind<-grep("M1_Q5_comp|visit_freq_bin_num|Wellbeing_sat_num", tidy_fit$label)
+tidy_fit<-tidy_fit[ind,]
+rm(ind)
+ind<-grep("Variances|Means", tidy_fit$label)
+tidy_fit<-tidy_fit[-ind,]
+rm(ind)
+
+tidy_fit$Predictor<-NA
+tidy_fit$Outcome<-NA
+for (i in 1:NROW(tidy_fit)){
+  end_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[1]]
+  tidy_fit$Outcome[i]<-substr(tidy_fit$label[i], 1, end_char-1)
+  rm(end_char)
+  start_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[2]]
+  tidy_fit$Predictor[i]<-substr(tidy_fit$label[i], start_char+1, nchar(tidy_fit$label[i]))
+  rm(start_char)
+}
+tidy_fit$label<-NULL
+
+class(tidy_fit$Outcome)
+tidy_fit$Outcome<-gsub("M1_Q5_comp", "Green_qual_comp", tidy_fit$Outcome)
+
+tidy_fit<-pivot_wider(tidy_fit,id_cols = Predictor, names_from = Outcome, values_from = c( est_sig,se, pval,confint))
+
+cols_green<-grep("Green", names(tidy_fit))
+cols_sat<-grep("Wellbeing", names(tidy_fit))
+cols_visit<-grep("visit", names(tidy_fit))
+tidy_fit<-tidy_fit[, c(1, cols_green, cols_visit, cols_sat)]
+rm(cols_green, cols_visit, cols_sat)
+
+tidy_fit_flex<-flextable(tidy_fit) %>%
+  colformat_num(j = c( "pval_Green_qual_comp", "pval_visit_freq_bin_num",   "pval_Wellbeing_sat_num"  ), digits = 3)
+## print table
+print("Understandardised SEM results table by land covers")
+tidy_fit_flex
+
+## save table
+setwd(Results_wd)
+write.csv(tidy_fit, "tidy_sem_results_unstandardised.csv")
+rm(tidy_fit, tidy_fit_flex)
+
+
+fit_stats <- summary(fit,fit.measures = TRUE)$fit
+wanted <- c("chisq", "df", "cfi", "tli", "ntotal", "rmsea")
+fit_stats_selected <- fit_stats[wanted]
+print("Fit measures for unstandardised SEM")
+fit_stats_selected
+rm(fit_stats, wanted, fit_stats_selected)
+
+
+
+
+```
+
+```{r plot_sem, echo = FALSE, eval = FALSE}
+# Create the edges with labels dynamically
+edges <- glue("
+  tab3 -> tab2 [label = '{tidy_fit_stand[ind[3], 3]}']
+  tab4 -> tab2 [label = '{tidy_fit_stand[ind[4], 3]}']
+  tab5 -> tab2 [label = '{tidy_fit_stand[ind[5], 3]}']
+  tab6 -> tab2 [label = '{tidy_fit_stand[ind[6], 3]}']
+  tab7 -> tab2 [label = '{tidy_fit_stand[ind[7], 3]}']
+  
+  tab2 -> tab8 [label = '{tidy_fit_stand[ind[2], 9]}']
+  tab3 -> tab8 [label = '{tidy_fit_stand[ind[3], 9]}']
+  tab4 -> tab8 [label = '{tidy_fit_stand[ind[4], 9]}']
+  tab5 -> tab8 [label = '{tidy_fit_stand[ind[5], 9]}']
+  tab6 -> tab8 [label = '{tidy_fit_stand[ind[6], 9]}']
+  tab7 -> tab8 [label = '{tidy_fit_stand[ind[7], 9]}']
+  
+  tab2 -> tab1 [label = '{tidy_fit_stand[ind[2], 15]}']
+  tab3 -> tab1 [label = '{tidy_fit_stand[ind[3], 15]}']
+  tab4 -> tab1 [label = '{tidy_fit_stand[ind[4], 15]}']
+  tab5 -> tab1 [label = '{tidy_fit_stand[ind[5], 15]}']
+  tab6 -> tab1 [label = '{tidy_fit_stand[ind[6], 15]}']
+  tab7 -> tab1 [label = '{tidy_fit_stand[ind[7], 15]}']
+  tab8 -> tab1 [label = '{tidy_fit_stand[ind[8], 15]}']
+")
+
+#  nodesep = 1.0 // Increase horizontal spacing between nodes
+# Create the full graph string
+
+#ranksep = 0.05
+graph_string <- glue("
+digraph flowchart {{
+  rankdir = LR
+  node [fontname = Arial, shape = square, fontsize=11, width=1.15, height=0.75]
+
+  tab1 [label = 'Well-being']
+  tab2 [label = 'Green space\\nquality']
+  tab3 [label = 'Grassland']
+  tab4 [label = 'Arable']
+  tab5 [label = 'Woodland']
+  tab6 [label = 'Built-up']
+  tab7 [label = 'Improved\ngrassland']
+  tab8 [label = 'Visit\\nfrequency']
+  
+  {edges}
+  
+  {{ rank = same; tab1; tab8 }}
+  
+  {{ rank = same; tab3; tab4; tab5; tab6;  tab7}}
+}}
+")
+
+# Render the graph
+plot_paths <- grViz(graph_string, width = 800, height = 800)
+
+plot_paths
+setwd(Figures_wd)
+
+grViz(graph_string) %>%
+    export_svg %>% charToRaw %>% rsvg_png("SEM_paths_stand.png",  width = 1000, height = 800)
+
+
+## https://cran.r-project.org/web/packages/lavaanPlot/vignettes/Intro_to_lavaanPlot.html
+```
+
+
+## SEM - Number of land covers
+
+```{r sem_num_habs, echo = FALSE}
+## Specify model
+model_spec <- ' 
+# direct effect
+             Wellbeing_sat_num ~1+ b2*M1_Q5_comp + b1*visit_freq_bin_num + c*num_habs_wtd + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs + a16_24+ a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+             
+           # mediators
+  
+            M1_Q5_comp ~1+ hq*num_habs_wtd + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs+ a16_24+ a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+            
+             visit_freq_bin_num ~ 1+ d*M1_Q5_comp + hv*num_habs_wtd + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs  + a16_24+ a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+
+            
+           # indirect effects (a*b)
+           
+             hvb1 := hv*b1
+             
+             hqb2 := hq*b2
+             
+             hqdb1 := hq*d*b1
+             
+             ## All indirect
+             ttl_indirect_hv := (hv*b1) + (hq*b2) + (hq*d*b1)
+             
+           # total effects
+             totalh1 := (hv*b1) + (hq*b2) + (hq*d*b1) + c
+         '
+
+## Fit model
+fit <- sem(model_spec, data = mod_data,sampling.weights  = "rescaled_weights")
+setwd(Results_wd)
+## Create standardised coefficients table
+## Presented in supp mats
+tidy_fit_stand<-standardizedSolution(fit)
+
+
+ind<-which(tidy_fit_stand$op== ":=")
+pathways<-tidy_fit_stand[ind,] 
+
+col_ind<-grep("pvalue", names(pathways))
+pathways$est_stars<-round(pathways$est.std, digits =3)
+## Add stars to indicate significance
+stars_ind<-grep("stars", names(pathways))
+stars_names<-names(pathways)[stars_ind]
+for (i in 1:length(col_ind)){
+  ind<-which(pathways[col_ind[i]]<0.001)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind], "***")
+  ind<-which(pathways[col_ind[i]]<0.01 & pathways[col_ind[i]]>=0.001)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind],"**")
+  ind<-which(pathways[col_ind[i]]<0.05 & pathways[col_ind[i]]>=0.01)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind], "*")
+}
+
+rm(ind, i, stars_names, stars_ind)
+
+pathways<- pathways %>%
+  mutate(conf_int=paste0(round(ci.lower, digits = 3), ",",round(ci.upper, digits = 3))) %>%
+  select(rhs,est_stars, conf_int)
+
+
+write.csv(pathways, "tidy_sem_pathways__num_landcovers_standardised.csv")
+print("Standardised pathways - number of land covers")
+pathways_flex<-flextable(pathways)
+pathways_flex
+rm(pathways, pathways_flex)
+
+## There are hundreds of rows, so only included key rows
+ind<-grep("M1_Q5_comp|visit_freq_bin_num|Wellbeing_sat_num", tidy_fit_stand$lhs)
+tidy_fit_stand<-tidy_fit_stand[ind,]
+rm(ind)
+tidy_fit_stand<-pivot_wider(tidy_fit_stand,id_cols = rhs, names_from = lhs, values_from = c( est.std,se, pvalue, ci.lower, ci.upper))
+
+cols_green<-grep("M1_Q5_comp", names(tidy_fit_stand))
+cols_sat<-grep("Wellbeing", names(tidy_fit_stand))
+cols_visit<-grep("visit", names(tidy_fit_stand))
+tidy_fit_stand<-tidy_fit_stand[, c(1, cols_green, cols_visit, cols_sat)]
+rm(cols_green, cols_visit, cols_sat)
+
+tidy_fit_stand[,2:NCOL(tidy_fit_stand)]<-round(tidy_fit_stand[,2:NCOL(tidy_fit_stand)], digits =3)
+## Add stars to indicate significance
+col_ind<-grep("pvalue", names(tidy_fit_stand))
+tidy_fit_stand$est.stars_Green_space_quality<-round(tidy_fit_stand$est.std_M1_Q5_comp, digits =2)
+tidy_fit_stand$est.stars_visit_freq_bin_num<-round(tidy_fit_stand$est.std_visit_freq_bin_num, digits =2)
+tidy_fit_stand$est.stars_Wellbeing_sat_num<-round(tidy_fit_stand$est.std_Wellbeing_sat_num, digits =2)
+
+stars_ind<-grep("stars", names(tidy_fit_stand))
+stars_names<-names(tidy_fit_stand)[stars_ind]
+for (i in 1:length(col_ind)){
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.001)
+  tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "***")
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.01 & tidy_fit_stand[col_ind[i]]>=0.001)
+   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind],"**")
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.05 & tidy_fit_stand[col_ind[i]]>=0.01)
+   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "*")
+}
+
+rm(i, col_ind, stars_ind, stars_names)
+tidy_fit_stand<-tidy_fit_stand[,c(1:2, 17, 3:7, 18, 8:12, 19, 13:16)]
+
+write.csv(tidy_fit_stand, "tidy_sem_results_standardised.csv")
+
+tidy_fit_stand_flex<-flextable(tidy_fit_stand)
+print("Standardised SEM results predicting life satisfaction by number of land covers")
+tidy_fit_stand_flex
+
+rm(tidy_fit_stand_flex)
+
+### Prepare unstandardised results table, presented in main manuscript
+sum_sem<-summary(fit)
+ind<-which(sum_sem$pe$lhs=="hvb1")
+unstandard_indirect<-sum_sem$pe[ind:NROW(sum_sem$pe),] 
+unstandard_indirect[,6:9]<-round(unstandard_indirect[,6:9], digits = 3)
+write.csv(unstandard_indirect, "unstandardised_indirect_totals_num_habs.csv")
+rm(sum_sem, ind, unstandard_indirect)
+
+tidy_fit<-tidySEM::table_results(fit , digits = 3)
+ind<-grep("M1_Q5_comp|visit_freq_bin_num|Wellbeing_sat_num", tidy_fit$label)
+tidy_fit<-tidy_fit[ind,]
+rm(ind)
+ind<-grep("Variances|Means", tidy_fit$label)
+tidy_fit<-tidy_fit[-ind,]
+rm(ind)
+
+tidy_fit$Predictor<-NA
+tidy_fit$Outcome<-NA
+for (i in 1:NROW(tidy_fit)){
+  end_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[1]]
+  tidy_fit$Outcome[i]<-substr(tidy_fit$label[i], 1, end_char-1)
+  rm(end_char)
+  start_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[2]]
+  tidy_fit$Predictor[i]<-substr(tidy_fit$label[i], start_char+1, nchar(tidy_fit$label[i]))
+  rm(start_char)
+}
+tidy_fit$label<-NULL
+tidy_fit$Outcome<-gsub("M1_Q5_comp", "Green_qual_comp", tidy_fit$Outcome)
+
+tidy_fit<-pivot_wider(tidy_fit,id_cols = Predictor, names_from = Outcome, values_from = c( est_sig,se, pval,confint))
+
+cols_green<-grep("Green_", names(tidy_fit))
+cols_sat<-grep("Wellbeing", names(tidy_fit))
+cols_visit<-grep("visit", names(tidy_fit))
+tidy_fit<-tidy_fit[, c(1, cols_green, cols_visit, cols_sat)]
+rm(cols_green, cols_visit, cols_sat)
+
+tidy_fit_flex<-flextable(tidy_fit) %>%
+  colformat_num(j = c(  "pval_Green_qual_comp", "pval_visit_freq_bin_num",   "pval_Wellbeing_sat_num"  ), digits = 3)
+print("Untandardised SEM results predicting life satisfaction by number of land covers")
+tidy_fit_flex
+
+## save table
+setwd(Results_wd)
+write.csv(tidy_fit, "tidy_sem_results_unstandardised.csv")
+rm(tidy_fit, tidy_fit_flex)
+
+#summary(fit, standardized=TRUE, fit.measures=TRUE)
+#fitMeasures(fit, standardized=TRUE)
+#modindices(fit,sort=TRUE)
+
+## plot standardised results
+## This plot is too complicated though as it includes all variables
+## I did it manually in the paper
+#p<-lavaanPlot(fit, coefs = TRUE, sig = 0.05, stand = TRUE, stars = "regress", graph_options = list(rankdir = "LR"))
+
+#p<-lavaanPlot2(fit, graph_options 
+#p
+#rm(p)
+
+
+#key_vars <- c("Wellbeing_sat_num", "M1_Q5_comp","ACNG_cats_num", "AH_cats_num",
+ #             "BMYW_cats_num", "BUAG_cats_num", "IG_cats_num",
+  #            "visit_freq_bin_num")
+
+#ind <- match(key_vars, tidy_fit_stand$rhs)
+
+```
+<!---BLOCK_LANDSCAPE_STOP--->

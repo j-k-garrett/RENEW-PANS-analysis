@@ -1,0 +1,1169 @@
+---
+title: "1_pans_data_descriptives"
+author: "Jo Garrett"
+date: "2023-06-26"
+output: word_document
+---
+
+```{r load_packages,echo =FALSE, message=FALSE, warning =FALSE}
+
+## Load packages
+library(corrplot)
+library(dplyr)
+library(flextable)
+library(forcats)
+library(ggcorrplot)
+library(ggplot2)
+library(Hmisc)
+library(huxtable)
+library(lubridate)
+library(plotrix)
+library(plyr)
+library(pracma)
+library(psych)
+library(questionr)
+library(RColorBrewer)
+library(readxl)
+library(rmarkdown)
+library(santoku)
+library(spatstat)
+library(tidyr)
+library(viridis)
+
+
+```
+
+# Read in data
+
+```{r read_in_data, echo =FALSE}
+setwd("E:\\Projects\\RENEW\\Jo\\PANS\\PANS_data")
+pans_data<-read.csv("APANS Y3Q4 Linked Habitat.csv")
+
+
+```
+
+
+## Missing data
+
+```{r missing_data, echo = FALSE}
+
+
+## For all the added habitat variables, where value is NA,recoding this as 0
+for (i in 614:682){
+  ind<-which(is.na(pans_data[,i])==TRUE)
+  pans_data[ind, i]<-0
+}
+rm(ind, i)
+
+##Do this first, then replace don't knows etc with nas with custom functin
+col_nums<-c(grep("M1_Q5", names(pans_data)),
+            grep("M1_Q4_g", names(pans_data)),
+            grep("M1_Q1", names(pans_data)), 
+            grep("Wellbeing_satisfied", names(pans_data)),
+            grep("Region", names(pans_data)), 
+            grep("Home_IMD_Decile", names(pans_data)),
+            grep("Income", names(pans_data)),
+            grep("Age_Band", names(pans_data)),
+            which(names(pans_data)=="Gender"),
+            grep("General_Health", names(pans_data)),
+            which(names(pans_data)=="Ethnicity"),
+            which(names(pans_data)=="Marital_Status"),
+            which(names(pans_data)=="No_Of_Vehicles"),
+            which(names(pans_data)=="Interview_Date"),
+            which(names(pans_data)=="Illnesses"),  grep("Dog", names(pans_data)),     which(names(pans_data)=="Work_Status"))
+for (i in 1:length(col_nums)){
+  ind<-grep("know|prefer", pans_data[,col_nums[i]], ignore.case = TRUE)
+  pans_data[ind,col_nums[i]]<-NA
+   ind<-which(pans_data[,col_nums[i]]=="")
+   pans_data[ind,col_nums[i]]<-NA
+}
+
+missing_vals<-apply(pans_data[,col_nums], MARGIN = 2, FUN = function(x) sum(is.na(x))) %>%
+  as.data.frame() 
+names(missing_vals)[1]<-"Count"
+missing_vals<-missing_vals %>%
+  mutate(Percent=Count/(NROW(pans_data))*100) %>%
+  mutate(Variables = rownames(.)) %>%
+  as_huxtable() 
+missing_vals
+rm(missing_vals, col_nums, i, ind)
+
+```
+
+```{r create_r_modelling_index, echo = FALSE}
+
+# Calculate modelling index with no missing values and also gender of "other" excluded
+
+mod_ind<-which(is.na(pans_data$M1_Q5_a)==FALSE &
+                        is.na(pans_data$M1_Q5_b)==FALSE &
+                        is.na(pans_data$M1_Q5_c)==FALSE &
+                        is.na(pans_data$M1_Q5_d)==FALSE &
+                        is.na(pans_data$M1_Q5_e)==FALSE &
+                        is.na(pans_data$M1_Q5_f)==FALSE &
+                        is.na(pans_data$M1_Q5_g)==FALSE &
+                        is.na(pans_data$M1_Q4_g)==FALSE &
+                        is.na(pans_data$M1_Q1)==FALSE &
+                        is.na(pans_data$Wellbeing_satisfied)==FALSE &
+                        is.na(pans_data$Region)==FALSE &
+                          is.na(pans_data$Home_IMD_Decile)==FALSE &
+                         is.na(pans_data$Income)==FALSE &
+                        is.na(pans_data$Age_Band)==FALSE &
+                         is.na(pans_data$Gender)==FALSE &
+                          is.na(pans_data$General_Health)==FALSE &
+                            is.na(pans_data$Ethnicity)==FALSE  &
+                            is.na(pans_data$Marital_Status)==FALSE  &
+                            is.na(pans_data$No_Of_Vehicles)==FALSE & 
+                          pans_data$Gender!="In another way (specify)" &
+                            is.na(pans_data$Illnesses)==FALSE &                         is.na(pans_data$Dog)==FALSE )
+
+mod_data<-pans_data[mod_ind,]
+rm(mod_ind)
+                        
+                        
+```
+
+
+
+```{r rescale_weights, echo = FALSE}
+subset_proportion <- nrow(mod_data) / nrow(pans_data)
+
+# Step 2: Compute rescaled weights using the subset proportion
+mod_data$rescaled_weights<-numeric(NROW(mod_data))
+
+mod_data$rescaled_weights <- mod_data$Weight_Percent / subset_proportion
+
+rm(subset_proportion)
+```
+
+## Q1 Outcomes
+
+### i) Good opportunities to see nature
+
+Q5 (M1_Q5) The next question will ask you to think about green and natural spaces close to where you live Now, thinking about green and natural spaces close to where you live, how much do you agree or disagree with the following statements? g) Provide good opportunities to see nature
+
+### ii) Composite measure of nearby nature qualities
+Supplemental Figure 1
+
+```{r view_measure, echo = FALSE, fig.height = 7, fig.width=7, dpi = 300}
+
+## All items about perceived qualities of nearby green and natural spaces
+col_nums<-grep("M1_Q5", names(mod_data))
+
+##convert all to factors
+mod_data[,col_nums]<-lapply(mod_data[,col_nums],  function(x) as.factor(x))
+
+mod_data[,col_nums]<-lapply(mod_data[,col_nums], function(x) factor(x, levels = c("Strongly disagree", "Disagree", "Neither agree nor disagree", "Agree", "Strongly agree")))
+
+## Calculate count table
+
+## up to here, something has gone wrong is it the weights?
+output<-lapply(mod_data[,col_nums], function(x) as.numeric(questionr::wtd.table(x, weights =mod_data$rescaled_weights )))  %>%
+  ldply(rbind) %>%
+  tidyr::gather(key = "Response", value = "Counts", -.id)
+
+output$Response<-sapply(levels(mod_data[,col_nums[1]]), FUN = function(x) rep(x,7)) %>%
+  as.vector()
+output$Percent<-output$Counts/(sum(mod_data$rescaled_weights))*100
+
+names(output)[1]<-"Question"
+
+output$Response<-factor(output$Response, levels = c("Strongly disagree", "Disagree", "Neither agree nor disagree", "Agree", "Strongly agree")) %>%
+  fct_recode( 'Neither agree\nnor disagree'= "Neither agree nor disagree",  'Strongly\ndisagree'= "Strongly disagree")
+
+output$Question<-as.factor(output$Question) %>%
+  fct_recode( 'Walking distance'= "M1_Q5_a", 'Mental health and wellbeing' = "M1_Q5_b", 'High standard' = "M1_Q5_c", 'Children to play' = "M1_Q5_d", 'Physical activity and exercise' = "M1_Q5_e", 'Socialising' = "M1_Q5_f", 'Nature' = "M1_Q5_g")
+
+## Plot distribution of each quality item
+## Supplemental figure 1
+p<-ggplot(output, aes(x = Response, y = Percent))+
+   geom_col() +
+  facet_wrap(~Question, ncol = 2)+
+  theme_minimal()+
+  ylab("Weighted %age of respondents")+
+  theme(axis.text.x = element_text(angle = 25 , vjust = 1, hjust = 1))
+p
+setwd("E:\\Projects\\RENEW\\Jo\\PANS\\Figures")
+ggsave("sup_fig_1_nature_qualities.png", dpi = 300, width = 7, height = 7)
+rm(p, output, col_nums)
+
+
+```
+
+
+## Create nearby nature qualities composite
+Supplemental Figure 2
+```{r create_comp, echo = FALSE, fig.height=3, fig.width =4}
+
+
+mod_data<- mod_data %>%
+  dplyr::mutate(across(
+    starts_with("M1_Q5"),
+    ~ as.numeric(.),
+    .names = "{.col}_num"
+  ))
+
+
+col_nums_2<-grep("_num", names(mod_data))
+
+# Chronbach's alpha
+alpha_output<-psych::alpha(mod_data[,col_nums_2])
+alpha_output$total
+alpha_output$alpha.drop
+
+rm(alpha_output)
+
+## Create nature qualities composite variable
+mod_data$M1_Q5_comp<-NA
+mod_data$M1_Q5_comp<-rowSums(mod_data[,col_nums_2 ])
+mod_data$M1_Q5_comp<-(mod_data$M1_Q5_comp/7)-3
+## Check range
+## It should be -2 to +2
+range(mod_data$M1_Q5_comp)
+
+rm(col_nums_2)
+brks<-seq(-2, 2, 0.5)
+
+h<-weighted.hist(mod_data$M1_Q5_comp,mod_data$rescaled_weights, breaks = brks,col=NULL,plot=FALSE)
+ 
+h_df<-data.frame("mids" = h$mids, "counts"=h$counts)
+h_df$percent<-h$counts/(sum(h$counts))*100
+
+## Plot distribution of qualities composite
+## Supplemental figure 2
+p<-ggplot(h_df, aes(x = mids, y = percent))+
+  geom_col() +
+  xlab("Composite quality value")+
+  ylab("Weighted %age of respondents")+
+  theme_minimal()+
+  ylim(c(0, 40))
+p
+
+setwd("E:\\Projects\\RENEW\\Jo\\PANS\\Figures")
+ggsave("sup_fig_2_nearby_nature_qualities_composite_histogram.png", dpi = 300,height = 4, width = 6)
+
+rm(brks, h, h_df,p)
+```
+
+
+```{r create_ordered, echo = FALSE}
+
+## Order nearby nature opportunities item
+mod_data$local_good_nature_ord<-ordered(mod_data$M1_Q5_g)
+
+
+```
+
+## Create satisfaction with nearby nature opportunities
+
+```{r nature_should, echo = FALSE, fig.height =3, dpi = 300}
+
+mod_data$M1_Q4_g<-as.factor(mod_data$M1_Q4_g)
+
+## Set factor levels to enable factor ordering and conversion to numeric
+mod_data$M1_Q4_g<-factor(mod_data$M1_Q4_g, levels = c("Strongly disagree", "Disagree", "Neither agree nor disagree", "Agree", "Strongly agree"))
+M1_Q4_tbl<-as.data.frame(questionr::wtd.table(mod_data$M1_Q4_g, weights = mod_data$rescaled_weights))
+M1_Q4_tbl$percent<-M1_Q4_tbl$Freq/(sum(M1_Q4_tbl$Freq))*100
+
+p<-ggplot(M1_Q4_tbl, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  ylab("%age of respondents")+
+  theme(axis.text.x = element_text(angle = 25 , vjust = 1, hjust = 1)) +
+  ggtitle("Nearby green spaces should provide good\nopportunities to see nature")+
+  xlab("")
+p
+
+M1_Q4_tbl
+
+rm(M1_Q4_tbl, p)
+```
+
+## Create satisfaction with nearby nature opportunities variable
+
+```{r create_binary, echo = FALSE, fig.height =3, fig.width = 6, dpi = 300}
+
+## Explore the should and actually good opportunities to see nature variables
+cross_tab<-questionr::wtd.table(mod_data$M1_Q4_g, mod_data$M1_Q5_g, useNA = "ifany", weights = mod_data$rescaled_weights) %>%
+  as.data.frame() 
+
+names(cross_tab)<-c("Should","Actually", "Freq")
+
+cross_tab$percent<-cross_tab$Freq/(sum(cross_tab$Freq))*100
+
+#levels(cross_tab$Should)
+cross_tab$Actually<-factor(cross_tab$Actually, levels=c(rev(levels(cross_tab$Actually)[1:5]), (levels(cross_tab$Actually)[6:7])))
+
+col_pal<-brewer.pal(5,"RdYlBu")
+
+p<-ggplot(cross_tab, aes(x =Should, y = percent, fill= Actually))+ 
+    geom_bar(position="stack", stat="identity")+
+  theme_minimal()+
+  scale_fill_manual(values =col_pal)+
+  ylab("%age of respondents")+
+  ylim(c(0, max(pretty(prop.table(table(mod_data$M1_Q4_g))*100))))+
+  theme(axis.text.x = element_text(angle = 25 , vjust = 1, hjust = 1)) 
+#print as matrix/image maybe
+p
+rm(p, cross_tab, col_pal)
+
+## Create satisfaction with nearby nature opportunities variable
+mod_data$Nature_opp_met<-character(NROW(mod_data))
+mod_data$Nature_opp_met<-NA
+ind<-which((mod_data$M1_Q4_g=="Agree" | mod_data$M1_Q4_g=="Strongly agree") & (mod_data$M1_Q5_g=="Agree" | mod_data$M1_Q5_g=="Strongly agree"))  
+mod_data$Nature_opp_met[ind]<-"Satisfied"
+
+ind<-which((mod_data$M1_Q4_g=="Agree" | mod_data$M1_Q4_g=="Strongly agree") & (mod_data$M1_Q5_g=="Disagree" | mod_data$M1_Q5_g=="Strongly disagree" | mod_data$M1_Q5_g=="Neither agree nor disagree"))  
+mod_data$Nature_opp_met[ind]<-"Unsatisfied"
+
+ind<-which(mod_data$M1_Q4_g=="Disagree" | mod_data$M1_Q4_g=="Strongly disagree" | mod_data$M1_Q4_g=="Neither agree nor disagree")  
+mod_data$Nature_opp_met[ind]<-"No need"
+
+mod_data$Nature_opp_met<-as.factor(mod_data$Nature_opp_met)
+#levels(mod_data$Nature_opp_met)
+mod_data$Nature_opp_met<-factor(mod_data$Nature_opp_met, levels = c("Satisfied", "Unsatisfied",  "No need"))
+
+
+## Explore distribution of resulting variable
+tbl_nature_opp<-as.data.frame(questionr::wtd.table(mod_data$Nature_opp_met, weights = mod_data$rescaled_weights))
+tbl_nature_opp$percent<-tbl_nature_opp$Freq/(sum(tbl_nature_opp$Freq))*100
+
+p<-ggplot(tbl_nature_opp, aes(x = Var1, y = percent))+
+  geom_col() +
+  theme_minimal()+
+  ylab("%age of respondents") +
+  xlab("Nearby nature opportunities") +
+  scale_y_continuous(breaks = seq(0, max(pretty(tbl_nature_opp$percent)), 10), limits = c(0, max(pretty(tbl_nature_opp$percent))))
+p
+
+rm(tbl_nature_opp, ind,p)
+
+```
+
+## Outcomes - RQ2
+
+### Visit frequency
+
+```{r visit_freq, echo = FALSE, fig.width = 6, fig.height = 4}
+## Create binary visit frequency variable - visiting weekly or less often
+mod_data$visit_freq_bin<-mod_data$M1_Q1 %>%
+  as.factor()%>%
+  fct_recode('<1 a week' = "Less often", '<1 a week' = "Once or twice a month", '>=1 a week' = "Every day",'>=1 a week' = "Twice a week", '>=1 a week' = "More than twice a week, but not every day", '>=1 a week' = "Once a week",'<1 a week' = "Never", '<1 a week' = "Once every 2-3 months")
+
+
+## Explore visit frequency variables
+tbl_visit_freq<-as.data.frame(prop.table(questionr::wtd.table(mod_data$M1_Q1, mod_data$visit_freq_bin, weights = mod_data$rescaled_weights))*100) %>%
+  filter( Freq > 0)
+tbl_visit_freq$Var2<-factor(tbl_visit_freq$Var2, levels = c("<1 a week", ">=1 a week"))
+
+tbl_visit_freq$Var1<-factor(tbl_visit_freq$Var1, levels = c("Every day","More than twice a week, but not every day","Twice a week","Once a week", "Once or twice a month","Once every 2-3 months","Less often", "Never"))
+
+p<-ggplot(tbl_visit_freq, aes(x=Var2,  y = Freq, fill= Var1))+
+  geom_bar(position="stack", stat="identity")+
+  theme_minimal()+
+  ylab("%age of respondents")+
+  xlab("Natural space visit frequency")+
+  scale_fill_manual(values =c(RColorBrewer::brewer.pal(8, "RdYlBu"), rep("gray65",2)), name = "")+
+  ylim(c(0, 80))
+p
+rm(tbl_visit_freq, p)
+
+```
+
+### Life satisfacion
+
+```{r wellbeing, echo = FALSE}
+
+## Convert to numeric
+ind<-grep("Not at all", mod_data$Wellbeing_satisfied)
+mod_data$Wellbeing_satisfied[ind]<-"0"
+ind<-grep("Completely", mod_data$Wellbeing_satisfied)
+mod_data$Wellbeing_satisfied[ind]<-"10"
+rm(ind)
+mod_data$Wellbeing_satisfied<-as.factor(mod_data$Wellbeing_satisfied)
+
+mod_data$Wellbeing_satisfied <- factor(mod_data$Wellbeing_satisfied, levels = c("0","1","2","3","4","5","6","7","8","9","10"))
+
+## Create numeric life satisfaction variable
+mod_data$Wellbeing_sat_num<-as.numeric(mod_data$Wellbeing_satisfied)-1
+
+## Explore distribution of life satisfaction
+tbl_wellbeing<-as.data.frame(prop.table(questionr::wtd.table(mod_data$Wellbeing_sat_num, weights = mod_data$rescaled_weights))*100)
+p<-ggplot(tbl_wellbeing, aes(x= Var1, y = Freq))+
+  geom_col()+
+  theme_minimal()+
+  ylim(c(0, max(pretty(tbl_wellbeing$Freq))))+
+  ylab("%age of respondents")+
+  xlab("Life satisfaction")
+p
+rm(p, tbl_wellbeing)
+```
+
+## Predictors
+
+### England government office region
+
+```{r region, echo = FALSE}
+# Explore region
+tbl_region<-as.data.frame(questionr::wtd.table(mod_data$Region, weights = mod_data$rescaled_weights))
+tbl_region$percent<-tbl_region$Freq/(sum(tbl_region$Freq))*100
+
+tbl_region<-tbl_region[order(tbl_region$percent),]
+#is.factor(tbl_region$Var1)
+tbl_region$Var1<-factor(tbl_region$Var1, levels=unique(tbl_region$Var1))
+
+p<-ggplot(tbl_region, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("")+
+  ylab("%age of respondents")+
+  ylim(c(0, max(pretty(tbl_region$percent))))+
+  coord_flip()
+p
+
+rm(p, tbl_region)
+mod_data$Region<-as.factor(mod_data$Region)
+
+```
+
+### Deprivation
+
+### Area
+
+```{r area_dep, echo =FALSE, dpi = 300}
+
+### Create IMD quintile variable from decile variable
+mod_data$Home_IMD_quint<-mod_data$Home_IMD_Decile
+
+mod_data$Home_IMD_quint<-as.factor(mod_data$Home_IMD_quint)
+
+mod_data$Home_IMD_quint<-fct_recode(mod_data$Home_IMD_quint, '1' = "1", '1' = "2",'2' = "3", '2' = "4",'3' = "5",'3' = "6", '4'="7", '4'="8", '5'= "9", '5'="10")
+
+
+## Explore IMD quintile
+tbl_imd<-as.data.frame(questionr::wtd.table(mod_data$Home_IMD_quint, weights =mod_data$rescaled_weights))
+tbl_imd$percent<-tbl_imd$Freq/(sum(tbl_imd$Freq))*100
+
+p<-ggplot(tbl_imd, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal() +
+  xlab("IMD Quintile")+
+  ylab("%age of respondents")
+p
+rm(p, tbl_imd)
+```
+
+## Individual socio-economic status
+
+```{r household_income, echo = FALSE, dpi = 300}
+
+# Fix incorrect charactersin the data
+mod_data$Income<-gsub("Â", "", mod_data$Income)
+mod_data$Income<-gsub("â€“", "-£", mod_data$Income)
+
+mod_data$Income<-as.factor(mod_data$Income) 
+
+## Explore income
+tbl_inc<-as.data.frame(questionr::wtd.table(mod_data$Income,weights = mod_data$rescaled_weights))
+
+tbl_inc$percent<-tbl_inc$Freq/(sum(tbl_inc$Freq))*100
+
+#is.factor(tbl_inc$Var1)
+#levels(tbl_inc$Var1)
+
+p<-ggplot(tbl_inc, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("Household income")+
+  ylab("%age of respondents")+
+  theme(axis.text.x = element_text(angle = 25 , vjust = 1, hjust = 1))
+p
+rm(p, tbl_inc)
+
+```
+
+## Land cover
+
+## Create land cover diversity variable
+
+```{r num_of_lc_types_wtd_postcde, echo = FALSE}
+# find the sea and estuaries/rias columns in pans data
+ind_sea<-grep( "Sea_wtd|ER_wtd" , names(mod_data))
+
+## Combine seas and estuaries/rias
+mod_data$SER_wtd<-rowSums(mod_data[,ind_sea], na.rm=TRUE)
+rm(ind_sea)
+ind<- which(grepl("_wt", names(mod_data)) & !grepl("_B_", names(mod_data)) & !grepl("SW_wtd"  , names(mod_data)) & names(mod_data)!="Sea_wtd" & names(mod_data)!="ER_wtd" & !grepl("U_A_wtd", names(mod_data)))
+
+num_habs_wtd<-numeric(NROW(mod_data))
+
+# Create number of land covers variable
+for (i in 1:NROW(mod_data)){
+  ind_0<-which(mod_data[i,ind]>0)
+  num_habs_wtd[i]<-length(ind_0)
+}
+
+mod_data$num_habs_wtd<-num_habs_wtd
+rm(num_habs_wtd)
+
+tbl_num_habs_wtd<-questionr::wtd.table(mod_data$num_habs_wtd, weights = mod_data$rescaled_weights) %>%
+  as.data.frame()
+tbl_num_habs_wtd$percent<-tbl_num_habs_wtd$Freq/(sum(tbl_num_habs_wtd$Freq))*100
+
+p<-ggplot(tbl_num_habs_wtd, aes(x= Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("Number of habitats")+
+  ylab("%age of respondents")+
+  ylim(c(0, max(pretty(tbl_num_habs_wtd$percent))))
+p
+rm(tbl_num_habs_wtd, ind_0,p)
+rm(ind, i)
+```
+
+### Descriptive statistics - land covers
+- Manuscript Table 2
+- Supplemental Figure 3
+
+```{r habs_desc, echo = FALSE, fig.width=6}
+
+## find required land cover columns in the PANS dataset
+
+wtd_hab_cols<-grep("wt", names(mod_data) )
+wtd_hab_cols<- which(grepl("wt", names(mod_data)) & !grepl("_B_", names(mod_data)) & !grepl("Sea_wtd",  names(mod_data)) & !grepl( "ER_wtd",  names(mod_data))  & !grepl( "SW_wtd",  names(mod_data)))
+
+
+## Calculate weighted descriptive statistics of the land covers for the total sample
+stats_wtd_total<-apply(mod_data[wtd_hab_cols[c(1:4, 6, 18)]],
+                       MARGIN = 2, FUN = function(x) c(weighted.mean(x,mod_data$rescaled_weights, na.rm = FALSE), sqrt(Hmisc::wtd.var(x, mod_data$rescaled_weights)),wtd.quantile(x, weights=mod_data$rescaled_weights, probs=0.5), min(x, na.rm = TRUE), max(x, na.rm = TRUE))) %>%
+  ldply( rbind) %>%
+  mutate(wtd_habitat=c(rep("ACNG",5), rep("BMYW", 5), rep("BUAG", 5), rep("IG", 5),rep("AH", 5),rep("Count", 5)), stat = rep(c("wtd_Mean","wtd_std", "wtd_Median", "wtd_Min", "wtd_Max"), 6)) %>%
+  tidyr::pivot_wider(names_from = stat, values_from = '1') 
+  
+  # Calculate weighted descriptive statistics of the land covers by satisfaction with nearby nature opportunities
+  
+wtd_hab_names<- names(mod_data)[wtd_hab_cols[c(1:4, 6, 18)]]
+
+stats_wtd_nat_sat <- mod_data %>%
+  dplyr::group_by(Nature_opp_met) %>% 
+  dplyr::summarise(dplyr::across(all_of( wtd_hab_names),
+                                 list( wmean = ~ weighted.mean(.x, rescaled_weights, na.rm = TRUE), 
+                                       wstd = ~ sqrt(Hmisc::wtd.var(.x, rescaled_weights))),
+                                       .names = "{.col}_{.fn}"))
+
+names(stats_wtd_nat_sat)<-gsub("_A_wtd", "", names(stats_wtd_nat_sat))
+names(stats_wtd_nat_sat)<-gsub("_habs_wtd", "", names(stats_wtd_nat_sat))
+
+tidy_stats_nat_sat <- stats_wtd_nat_sat %>%
+  tidyr::pivot_longer( cols = -Nature_opp_met, names_to = c("variable", "statistic"), names_sep = "_", values_to = "value" )  %>%
+  tidyr::pivot_wider(names_from = c(statistic, Nature_opp_met), values_from = value) %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
+
+rm(stats_wtd_nat_sat)
+
+### Calculate weighted descriptive statistics  of the land covers by visit frequency
+stats_wtd_visits <- mod_data %>%
+  dplyr::group_by(visit_freq_bin) %>% 
+  dplyr::summarise(dplyr::across(all_of( wtd_hab_names),
+                                 list( wmean = ~ weighted.mean(.x, rescaled_weights, na.rm = TRUE), 
+                                       wstd = ~ sqrt(Hmisc::wtd.var(.x, rescaled_weights))),
+                                       .names = "{.col}_{.fn}"))
+
+names(stats_wtd_visits)<-gsub("_A_wtd", "", names(stats_wtd_visits))
+names(stats_wtd_visits)<-gsub("_habs_wtd", "", names(stats_wtd_visits))
+
+tidy_stats_visits <- stats_wtd_visits %>%
+  tidyr::pivot_longer( cols = -visit_freq_bin, names_to = c("variable", "statistic"), names_sep = "_", values_to = "value" )  %>%
+  tidyr::pivot_wider(names_from = c(statistic, visit_freq_bin), values_from = value) %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
+
+rm(stats_wtd_visits, wtd_hab_names)
+
+setwd("E:\\Projects\\RENEW\\Jo\\PANS\\Results")
+write.csv(stats_wtd_total, "habitat_total_descriptive_stats.csv")
+
+write.csv(tidy_stats_nat_sat, "habitat_nat_sat_descriptive_stats.csv")
+
+write.csv(tidy_stats_visits, "habitat_visits_descriptive_stats.csv")  
+
+stats_wtd_total$wtd_habitat[6]<-"num"
+names(stats_wtd_total)[1]<-"variable"
+
+## Merge weighted descriptive statistics for the total sample, by satisfaction with nearby nature opportunities and by visit frequency to produce manuscript table 2
+desc_stats<-merge(stats_wtd_total, tidy_stats_nat_sat, by = "variable") %>%
+  merge(tidy_stats_visits, by = "variable")
+
+rm(stats_wtd_total, tidy_stats_nat_sat, tidy_stats_visits)
+
+## Order by the highest average value
+ind<-order(desc_stats$wtd_Median[1:5], decreasing = TRUE)
+desc_stats<-desc_stats[c(ind, 6),]
+rm(ind)    
+desc_stats<-flextable(desc_stats)%>%
+  colformat_double(digits = 2)
+desc_stats
+
+rm(desc_stats)
+
+## Categorise land covers
+chop_habs<-function(habitat){
+  ind<-which(habitat>0)
+  ugly_cats<-chop_n(habitat[ind],round(length(ind)/4, digits = 0))
+  return(table(ugly_cats))
+}
+
+options(scipen=999)
+
+col_names<-names(mod_data)[wtd_hab_cols][c(1:4,6)]
+
+# Chop land cover category into four even categories (not including zeros)
+chop_table<-chop_habs(mod_data[[col_names[1]]])
+# print table
+chop_table
+
+# Assess manually to decide on pretty cut points for categories
+print(paste0("Therefore cut breaks for ", col_names[1], " are"))
+## cut breaks for ACNG:
+cut_brks_ACNG<-c(0,  0.00000001,5, 10, 20, 100)
+cut_brks_ACNG
+
+
+# Chop land cover category into four even categories (not including zeros)
+chop_table<-chop_habs(mod_data[[col_names[2]]])
+# print table
+chop_table
+# Assess manually to decide on pretty cut points for categories
+
+print(paste0("Therefore cut breaks for ", col_names[2], " are"))
+## cut breaks for BMYW:
+cut_brks_BMYW<-c(0,  0.00000001,5, 10, 20, 100)
+cut_brks_BMYW
+
+# Chop land cover category into four even categories (not including zeros)
+chop_table<-chop_habs(mod_data[[col_names[3]]])
+# print table
+chop_table
+# Assess manually to decide on pretty cut points for categories
+print(paste0("Therefore cut breaks for ", col_names[3], " are"))
+## cut breaks for BUAG
+cut_brks_BUAG<-c(0,  0.00000001,50, 60, 75, 100)
+cut_brks_BUAG
+
+# Chop land cover category into four even categories (not including zeros)
+chop_table<-chop_habs(mod_data[[col_names[4]]])
+#print table
+chop_table
+# Assess manually to decide on pretty cut points for categories
+print(paste0("Therefore cut breaks for ", col_names[4], " are"))
+## cut breaks for IG:
+cut_brks_IG<-c(0,  0.00000001,1, 3, 10, 100)
+cut_brks_IG
+
+
+# Chop land cover category into four even categories (not including zeros)
+chop_table<-chop_habs(mod_data[[col_names[5]]])
+# print table
+chop_table
+
+# Assess manually to decide on pretty cut points for categories
+print(paste0("Therefore cut breaks for ", col_names[5], " are"))
+## cut breaks for AH:
+cut_brks_AH<-c(0,  0.00000001,1,2, 10, 100)
+cut_brks_AH
+
+## Categorise land covers according to the generate cut points
+vect_cats<-matrix(data = NA, nrow = NROW(mod_data), ncol = length(col_names)) %>%
+  as.data.frame()
+short_habs<-c("ACNG","BMYW", "BUAG", "IG", "AH")
+#options(scipen=999)
+for ( i in 1:length(col_names)){
+  cut_brks<-get(ls(pattern = short_habs[i]))
+  cut_labs<-paste0(cut_brks[1:(length(cut_brks)-1)], " - <", cut_brks[2:length(cut_brks)])
+  cut_labs[1]<-"0"
+  cut_labs[2]<-paste0(">0 - <", cut_brks[3])
+  vect_cats[,i]<-cut(mod_data[[col_names[i]]], breaks = cut_brks, right = FALSE, include.lowest = TRUE, labels = cut_labs)
+}
+
+## Bind categories with PANS data
+mod_data_short_names<-paste0(short_habs, "_A_pred_ptc_wtd_percent_cats")
+mod_data<-data.frame(mod_data, vect_cats)
+names(mod_data)[(NCOL(mod_data)-4):NCOL(mod_data)]<-mod_data_short_names
+
+##
+rm(vect_cats,  prc_labs, short_habs, mod_data_short_names,  cut_labs, cut_brks, i)
+
+rm(list = ls(pattern="cut_brks_"))
+
+rm(chop_habs, chop_table, col_names)
+```
+
+## Habitat categories descriptive plots
+
+Supplemental Figure 4
+
+```{r hab_cats_plots, echo = FALSE}
+
+col_ind<-c(NCOL(mod_data)-4):NCOL(mod_data)
+
+## Calculate weighted count table for each land cover 
+for (i in 1 :length(col_ind)){
+  tbl_df<-data.frame(questionr::wtd.table(mod_data[,col_ind[i]], weights = mod_data$rescaled_weights))
+  tbl_df$percent<-tbl_df$Freq/(sum(tbl_df$Freq))*100
+  end_char<-unlist(gregexpr(pattern ='_', names(mod_data)[col_ind[i]]))[1]
+  hab_name<-substr(names(mod_data)[col_ind[i]], 1, end_char-1)
+  tbl_df$Habitat<-hab_name
+  rm(end_char)
+  assign(paste0("tbl_df_", hab_name), tbl_df)
+  rm(hab_name, tbl_df)
+}
+
+rm(i)
+
+list_tbls<-ls(pattern = "tbl_df_")
+
+all_tbls<-do.call(rbind.data.frame,mget(list_tbls))
+
+rm(list = list_tbls)
+rm(list_tbls)
+all_tbls$x<-as.factor(all_tbls$Var1)
+
+all_tbls$x<-factor(all_tbls$Var1, levels = unique(all_tbls$Var1))
+
+p<-ggplot(all_tbls, aes(x = x, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  facet_wrap(facets = vars(Habitat), drop= TRUE, scales = "free_x")+
+  ylab("Weighted %age respondents")+
+  xlab("%age landcover")+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=0.5))
+p
+
+setwd("E:\\Projects\\RENEW\\Jo\\PANS\\Figures")
+ggsave("descriptive_landcover_supp_fig3.png", dpi = 300, width = 7, height = 5)
+rm(p, all_tbls)
+```
+
+## Correlation between habitats
+Supplemental Table 5
+
+```{r correlation_between_lcs, echo = FALSE}
+
+## Calculating correlation between land covers 
+
+
+short_pcs_habs<-c("ACNG","BMYW","BUAG","IG","AH")
+mod_data_cor<-mod_data[, wtd_hab_cols[c(1:4,6)]]
+names(mod_data_cor)<-short_pcs_habs
+M <- cor(mod_data_cor,  method = "spearman") %>%
+  round(digits = 2) %>%
+  as.data.frame() %>%
+  mutate(habitats=rownames(.))
+ 
+ 
+cor_results<-flextable(M)
+# print correlation table
+cor_results
+rm(cor_results,M,mod_data_cor, wtd_hab_cols, short_pcs_habs)
+```
+
+
+
+## Covariates
+
+### Marital status
+
+```{r marital_status, echo = FALSE, fig.width= 6, fig.height = 2.5, dpi = 300}
+
+## Categorise marital status into two categories
+
+mod_data$Marital_Status<-as.factor(mod_data$Marital_Status)
+
+mod_data$Marital_cats<-fct_recode(mod_data$Marital_Status, 'In a relationship' = "Married or in a civil partnership", 'Not in a relationship' = "Single",'Not in a relationship' = "Widowed or surviving partner of civil partnership", 'In a relationship' = "Co-habiting",'Not in a relationship' = "Divorced or civil partnership dissolved",'Not in a relationship' = "Separated, but still legally married or in civil partnership")
+
+tbl_marital<-as.data.frame(questionr::wtd.table(mod_data$Marital_cats, weights = mod_data$rescaled_weights))
+tbl_marital$percent<-tbl_marital$Freq/(sum(tbl_marital$Freq))*100
+
+
+## plot figure weighted percentage binary marital category
+p<-ggplot(tbl_marital, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  ylab("%age of respondents")+
+  xlab("Relationship status")
+p
+rm(p, tbl_marital)
+```
+
+
+### Work status
+
+```{r work_status, echo = FALSE, fig.width = 9.5}
+mod_data$Work_Status<-gsub("â€“", "-", mod_data$Work_Status)
+
+## Recategorise work status into fewer categories
+mod_data$Work_Status2<-as.factor(mod_data$Work_Status) %>%
+fct_recode( Employed = "In full-time employment (31+ hours per week)", Employed = "In part-time employment (Up to 30 hours per week)" , 'Housework/Caring' =  "Not working - looking after house / children / other caring responsibilities",  'Retired' = "Not working - retired" ,Employed ="Self-employed", Unemployed= "Unemployed (long term) - more than 12 months", 'In education' ="Student - in full-time education", Disabled =  "Not working - long term sick or disabled",  Unemployed= "Unemployed - less than 12 months"  , 'In education'="Student - in part-time education")
+
+tbl_work<-as.data.frame(questionr::wtd.table(mod_data$Work_Status, mod_data$Work_Status2, weights = mod_data$rescaled_weights)) %>%
+  subset(Freq>0) %>%
+  mutate(percent=Freq/sum(Freq)*100)
+
+tbl_work2<-as.data.frame(table(mod_data$Work_Status2))
+tbl_work2<-tbl_work2[order(tbl_work2$Freq),]
+tbl_work$Var2<-factor(tbl_work$Var2, levels = unique(tbl_work2$Var1))
+
+rm(tbl_work2)
+p<-ggplot(tbl_work, aes(x = Var2, y = percent, fill = Var1))+
+  geom_bar(stat = "identity", position = "stack")+
+  theme_minimal()+
+  coord_flip()+
+  xlab("Employment status categories")+
+  ylab("%age of respondents")+
+  scale_fill_viridis(discrete = TRUE, name = "Response options")
+p
+rm(p, tbl_work)
+```
+
+### Car access
+
+```{r car_access, echo = FALSE, fig.width = 5.5, fig.height = 2.5, dpi = 300}
+
+
+## Recategorise vehicle access into two categories
+mod_data$car_cats<-mod_data$No_Of_Vehicles %>%
+  as.factor() %>%
+  fct_recode('1 or more' = "Four or more",'1 or more' ="One", '1 or more' ="Two", '1 or more' ="Three", '1 or more' ="Four or more")
+
+tbl_car<-as.data.frame(questionr::wtd.table(mod_data$car_cats, mod_data$No_Of_Vehicles, weights = mod_data$rescaled_weights))%>%
+  subset(Freq>0) %>%
+  mutate(percent=Freq/sum(Freq)*100)
+
+#levels(tbl_car$Var2)
+tbl_car$Var2<-factor(tbl_car$Var2, levels=c( "None", "One", "Two", "Three", "Four or more"))
+
+p<-ggplot(tbl_car, aes(x = Var1, y = percent, fill = Var2))+
+  geom_bar(stat = "identity", position = "stack")+
+  theme_minimal()+
+  coord_flip()+
+  xlab("Vehicle access\ncategories")+
+  ylab("%age of respondents")+
+  scale_fill_viridis(discrete = TRUE, name = "Response options")
+p
+rm(p, tbl_car)
+```
+
+### Dog ownership
+
+```{r dog, echo =FALSE, fig.height =2.5, fig.width = 4, dpi = 300}
+tbl_dog<-as.data.frame(questionr::wtd.table(mod_data$Dog, weights = mod_data$rescaled_weights))
+tbl_dog$percent<-tbl_dog$Freq/(sum(tbl_dog$Freq))*100
+
+p<-ggplot(tbl_dog, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("Dog ownership")+
+  ylab("%age of respondents")
+p
+rm(p, tbl_dog)
+mod_data$Dog<-as.factor(mod_data$Dog)
+
+```
+
+
+### Longstanding illness or disability
+```{r illness, echo = FALSE}
+tbl_illness<-data.frame(questionr::wtd.table(mod_data$Illnesses, weights = mod_data$rescaled_weights))
+
+tbl_illness$percent<-tbl_illness$Freq/(sum(tbl_illness$Freq))*100
+
+p<-ggplot(tbl_illness, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("Long term illness/condition")+
+  ylab("%age of respondents")
+p
+rm(p, tbl_illness)
+mod_data$Illnesses<-as.factor(mod_data$Illnesses)
+```
+
+### General health
+
+```{r general_health, echo = FALSE, fig.height= 2.5, fig.width =6, dpi = 300}
+
+## recategorise self-reported general health into three categories
+mod_data$Gen_health_3cats<-as.factor(mod_data$General_Health) %>%
+  fct_recode(Good = "Very good", Bad = "Very bad")
+
+tbl_health<-as.data.frame(questionr::wtd.table(mod_data$Gen_health_3cats, mod_data$General_Health, weights = mod_data$rescaled_weights))
+tbl_health$percent<-tbl_health$Freq/(sum(tbl_health$Freq))*100
+
+tbl_health$Var2<-factor(tbl_health$Var2, levels=c("Very good", "Good", "Fair", "Bad", "Very bad"))
+tbl_health$Var1<-factor(tbl_health$Var1, levels=c( "Good", "Fair", "Bad"))
+
+p<-ggplot(tbl_health, aes(x = Var1, y = percent, fill = Var2))+
+  geom_bar(position="stack", stat = "identity")+
+  theme_minimal()+
+  xlab("Health status categorised")+
+  ylab("%age of respondents")+
+  scale_fill_manual(values =brewer.pal(10, "RdYlBu")[c(1:3, 7:10)], name = "Original\nresponse")
+p
+rm(p, tbl_health)
+
+#levels(pans_data$Gen_health_3cats)
+mod_data$Gen_health_3cats<-relevel(mod_data$Gen_health_3cats, ref = "Fair")
+```
+
+### Season
+
+```{r season, echo = FALSE, fig.height= 2.5, fig.width =3.5}
+
+## Generate season categories
+mod_data$season<-as.Date(mod_data$Interview_Date) %>%
+  month(label = TRUE) %>%
+  fct_recode(Winter = "Jan", Winter = "Feb", Winter= "Dec", Spring = "Mar", Spring ="Apr", Spring="May", Summer ="Jun", Summer = "Jul", Summer = "Aug", Autumn = "Sep", Autumn = "Oct", Autumn = "Nov")
+tbl_season<-as.data.frame(questionr::wtd.table(mod_data$season, weights = mod_data$rescaled_weights))
+tbl_season$percent<-tbl_season$Freq/(sum(tbl_season$Freq))*100
+
+p<-ggplot(tbl_season, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("Interview season")+
+  ylab("%age of respondents")
+p
+rm(tbl_season, p)
+mod_data$season <- factor( mod_data$season , ordered = FALSE )
+```
+
+
+```{r ethnicity, echo = FALSE}
+
+
+## Categories ethnic and racialised minorities into two categories
+mod_data$Ethnicity_cats<-factor(mod_data$Ethnicity) %>%
+  fct_recode("Black, Asian, Mixed, Other"="Any other ethnic group or background", "Black, Asian, Mixed, Other"="Asian or Asian British","Black, Asian, Mixed, Other" = "Black or Black British", "Black, Asian, Mixed, Other"="Mixed")
+
+tbl_ethnic<-as.data.frame(questionr::wtd.table(mod_data$Ethnicity_cats, weights = mod_data$rescaled_weights))
+tbl_ethnic$percent<-tbl_ethnic$Freq/(sum(tbl_ethnic$Freq))*100
+
+p<-ggplot(tbl_ethnic, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("Ethnic/racialised minority")+
+  ylab("%age of respondents")
+p
+rm(tbl_ethnic, p)
+mod_data$Ethnicity_cats <- relevel(mod_data$Ethnicity_cats, ref = "White")
+
+```
+
+### Covid restrictions
+
+```{r covid_restrictions, echo = FALSE}
+
+## See supplemental Table 3 for covid restriction dates and details
+
+mod_data$Date<-as.Date(mod_data$Interview_Date)
+
+mod_data$covid_restrictions<-character(NROW(mod_data))
+ind<-which(mod_data$Date>="2020-03-24" & mod_data$Date<="2020-05-12")
+mod_data$covid_restrictions[ind]<-"First full lockdown"
+
+ind<-which(mod_data$Date>="2020-05-13" & mod_data$Date<="2020-07-03" |mod_data$Date>="2020-09-14" & mod_data$Date<="2021-05-16")
+mod_data$covid_restrictions[ind]<-"Outdoor recreation limited"
+
+ind<-which(mod_data$Date>="2020-07-04" & mod_data$Date<="2020-09-13" |mod_data$Date>="2021-05-17" & mod_data$Date<="2021-07-18" )
+mod_data$covid_restrictions[ind]<-"Minimal restrictions"
+
+ind<-which(mod_data$Date>="2021-07-19" )
+mod_data$covid_restrictions[ind]<-"No restrictions"
+
+rm(ind)
+mod_data$covid_restrictions<-as.factor(mod_data$covid_restrictions)
+
+mod_data$covid_restrictions<-factor(mod_data$covid_restrictions, levels=c("No restrictions", "Minimal restrictions", "Outdoor recreation limited", "First full lockdown"))
+
+tbl_covid<-as.data.frame(questionr::wtd.table(mod_data$covid_restrictions, weights = mod_data$rescaled_weights))
+tbl_covid$percent<-tbl_covid$Freq/(sum(tbl_covid$Freq))*100
+
+#levels(tbl_covid$Var1)
+tbl_covid$Var1<-factor(tbl_covid$Var1, levels=c("No restrictions", "Minimal restrictions", "Outdoor recreation limited", "First full lockdown"))
+
+p<-ggplot(tbl_covid, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("Covid restrictions")+
+  ylab("%age of respondents")+
+  ylim(c(0, max(pretty(tbl_covid$percent))))+
+  coord_flip()
+p
+rm(tbl_covid, p)
+mod_data$covid_restrictions <-factor(mod_data$covid_restrictions, levels=c("No restrictions", "Minimal restrictions", "Outdoor recreation limited", "First full lockdown"))
+
+```
+
+### Year
+
+```{r year, echo = FALSE}
+
+## Calculate year from interview date
+mod_data$Year<-as.Date(mod_data$Interview_Date) %>%
+  year()
+
+tbl_year<-as.data.frame(questionr::wtd.table(mod_data$Year, weights = mod_data$rescaled_weights))
+tbl_year$percent<-tbl_year$Freq/(sum(tbl_year$Freq))*100
+
+p<-ggplot(tbl_year, aes(x = Var1, y = percent))+
+  geom_col()+
+  theme_minimal()+
+  xlab("Interview year")+
+  ylab("%age of respondents")
+p
+rm(tbl_year, p)
+mod_data$Year <- factor( mod_data$Year, ordered = FALSE )
+```
+
+
+## Sample descriptives
+
+ Manuscript Table 1 and 2
+
+```{r sample_descriptives, echo = FALSE}
+## Manuscript Table 1
+# Categorical variable names
+var_names<-c("M1_Q5_g","Nature_opp_met", "visit_freq_bin","Home_IMD_quint","Income", "Region","ACNG_A_pred_ptc_wtd_percent_cats","BMYW_A_pred_ptc_wtd_percent_cats","BUAG_A_pred_ptc_wtd_percent_cats", "IG_A_pred_ptc_wtd_percent_cats","AH_A_pred_ptc_wtd_percent_cats","Age_Band", "Gender", "Ethnicity_cats", "Marital_cats", "Work_Status2", "car_cats", "Dog","Illnesses", "Gen_health_3cats",  "season","covid_restrictions", "Year")
+
+col_nums_2<-match(var_names, names(mod_data))
+
+variables_ordered<-names(mod_data)[col_nums_2]
+
+## Unweighted count of each variable category
+counts<-lapply(mod_data[,col_nums_2], function(x) table(x)) %>%
+  ldply( rbind) %>%
+  tidyr::gather(key = "Response", value = "Counts", -.id) %>%
+  filter(is.na(Counts)==FALSE) %>% 
+  arrange(factor(.id, levels = variables_ordered))
+
+## Weighted percentage of each variable category in the total sample
+wtd_prc<-lapply(mod_data[,col_nums_2], function(x) as.data.frame(questionr::wtd.table(x,weights = mod_data$rescaled_weights)/sum(mod_data$rescaled_weights)*100)) %>%
+  ldply( rbind)  %>%
+  arrange(factor(.id, levels = variables_ordered))
+wtd_prc$Freq<-round(wtd_prc$Freq, digits = 2)
+
+##  Weighted percentage of each variable category in by satisfaction with nearby nature opportunities
+wtd_prc_by_need<-lapply(mod_data[,col_nums_2], function(x) prop.table(questionr::wtd.table(x,mod_data$Nature_opp_met, weights = mod_data$rescaled_weights), margin = 1)*100) %>%
+  ldply( rbind) %>%
+  mutate("Response"=counts$Response) %>%
+  arrange(factor(.id, levels = variables_ordered))
+wtd_prc_by_need[,2:4]<-round(wtd_prc_by_need[,2:4], digits = 2)
+
+
+##  Weighted percentage of each variable category in by visit frequency
+wtd_prc_by_vf<-lapply(mod_data[,col_nums_2], function(x) prop.table(questionr::wtd.table(x,mod_data$visit_freq_bin, weights = mod_data$rescaled_weights), margin = 1)*100)  %>%
+  ldply( rbind) %>%
+  mutate("Response"=counts$Response) %>%
+  arrange(factor(.id, levels = variables_ordered))
+wtd_prc_by_vf[,2:3]<-round(wtd_prc_by_vf[,2:3], digits = 2)
+
+rm(variables_ordered)
+
+## Merge all sample count and weighted percentages tables together
+output_df_arranged<-data.frame(counts,"Wtd_prc"=wtd_prc$Freq, wtd_prc_by_need[,2:4], wtd_prc_by_vf[,2:3])
+rm(counts,wtd_prc_by_need, wtd_prc, wtd_prc_by_vf)
+
+names(output_df_arranged)[c(3:9)]<-c("Total_count","Total_wtd_prc", "wtd prc Satisfied","wtd prc Unsatisfied","wtd prc No need","wtd prc >=1 a week","wtd prc <1 a week")
+
+ind<-which(output_df_arranged$Total_count>=1)
+output_df_arranged<-output_df_arranged[ind,]
+rm(ind)
+
+output_flex<-flextable(output_df_arranged)
+
+output_flex
+
+rm(output_df_arranged,var_names,output_flex)
+
+
+### numeric variables- manuscript table 2
+
+num_vars<-c("M1_Q5_comp","Wellbeing_sat_num", "num_habs_wtd")
+col_ind<-match( num_vars,names(mod_data))
+
+# Descriptive statistics total sample
+summary_table <- sapply(mod_data[,col_ind], function(x) {
+  c(mean_wb = round(weighted.mean(x,w=mod_data$rescaled_weights, na.rm = TRUE),2),sd_w=round(sqrt(Hmisc::wtd.var(x, weights = mod_data$rescaled_weights, na.rm = TRUE)),2), median_wb = round(weighted.median(x,w = mod_data$rescaled_weights, na.rm = TRUE),2), min_val=min(x), max_val=max(x))
+}) %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column(var = "Variable") 
+
+# Descriptive statistics by Satisfaction with nearby nature opportunities
+summary_table_nat_sat <- mod_data %>%
+  select(Nature_opp_met, all_of(num_vars), rescaled_weights) %>%
+  tidyr::pivot_longer(cols = all_of(num_vars), names_to = "variable", values_to = "value") %>%
+  dplyr::group_by(Nature_opp_met, variable) %>%
+  dplyr::summarise(
+    mean_wb = round(weighted.mean(value, w = rescaled_weights, na.rm = TRUE), 2),
+    sd_w = round(sqrt(Hmisc::wtd.var(value, weights = rescaled_weights, na.rm = TRUE)), 2),
+    .groups = "drop"
+  )%>%
+  as.data.frame() %>%
+  tidyr::pivot_wider(names_from = Nature_opp_met, values_from = c(mean_wb, sd_w))
+
+## Descriptive statistics table by visit frequency
+summary_table_visit <- mod_data %>%
+  select(visit_freq_bin, all_of(num_vars), rescaled_weights) %>%
+  tidyr::pivot_longer(cols = all_of(num_vars), names_to = "variable", values_to = "value") %>%
+  dplyr::group_by(visit_freq_bin, variable) %>%
+  dplyr::summarise(
+    mean_wb = round(weighted.mean(value, w = rescaled_weights, na.rm = TRUE), 2),
+    sd_w = round(sqrt(Hmisc::wtd.var(value, weights = rescaled_weights, na.rm = TRUE)), 2),
+    .groups = "drop"
+  )%>%
+  as.data.frame() %>%
+  tidyr::pivot_wider(names_from = visit_freq_bin, values_from = c(mean_wb, sd_w))
+
+## Merge all descriptive statistic tables
+sum_all<-merge(summary_table,summary_table_nat_sat, by.x = "Variable", by.y = "variable")
+sum_all<-merge(sum_all, summary_table_visit, by.x = "Variable", by.y = "variable") %>%
+  as_hux() %>%
+  flextable()
+
+print("Numeric variables")
+
+## Print table, Manuscript table 2
+sum_all
+
+rm(summary_table, num_vars, col_ind, summary_table_nat_sat,summary_table_visit, sum_all, col_nums_2)
+
+mod_data$Region<-factor(mod_data$Region, levels = c("East", "East Midlands", "London", "North East", "North West", "South West", "West Midlands", "Yorkshire and the Humber", "South East"  ))
+
+```
+
+## Check for multi-collinearity
+
+```{r multi-co, echo = FALSE}
+
+## find predictor columns
+
+predictor_names<-c("Region","Home_IMD_quint","Income", "Age_Band", "Marital_Status", "Gender", "Ethnicity_cats", "Work_Status2","car_cats", "Dog", "Gen_health_3cats",   "season", "covid_restrictions", "Year")
+col_ind<-match(predictor_names, names(mod_data))
+cors<-model.matrix(~0+., data=mod_data[, col_ind]) %>% 
+  cor(use="pairwise.complete.obs") %>%
+  as.data.frame()
+ind_correlated<-which(cors>0.6, arr.ind = TRUE) %>%
+  as.data.frame()
+
+## Which covariates are correlated?
+print("Where the numbers are the same, that represents the diagonal correlation")
+ind_correlated
+
+rm(ind_correlated, cors, col_ind, predictor_names)
+```
+
+
+```{r save_workspace, echo = FALSE}
+
+rm(col_pal, col_nums_2, pcs_col_names, short_pcs_habs)
+setwd("E:\\Projects\\RENEW\\Jo\\PANS\\PANS_data")
+save.image(paste0("pans_data_workspace_",Sys.Date(), ".RData"))
+
+```
