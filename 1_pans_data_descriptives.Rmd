@@ -36,7 +36,8 @@ library(viridis)
 # Read in data
 
 ```{r read_in_data, echo =FALSE}
-setwd("E:\\Projects\\RENEW\\Jo\\PANS\\PANS_data")
+data_d<-"E:\\Projects\\RENEW\\Jo\\PANS\\PANS_data"
+setwd(data_d)
 pans_data<-read.csv("APANS Y3Q4 Linked Habitat.csv")
 
 
