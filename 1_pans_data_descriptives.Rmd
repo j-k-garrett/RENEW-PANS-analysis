@@ -525,6 +525,7 @@ rm(ind, i)
 - Manuscript Table 2
 - Supplemental Figure 3
 
+
 ```{r habs_desc, echo = FALSE, fig.width=6}
 
 ## find required land cover columns in the PANS dataset
@@ -646,7 +647,7 @@ chop_table
 # Assess manually to decide on pretty cut points for categories
 print(paste0("Therefore cut breaks for ", col_names[3], " are"))
 ## cut breaks for BUAG
-cut_brks_BUAG<-c(0,  0.00000001,50, 60, 75, 100)
+cut_brks_BUAG<-c(0,  0.00000001,50, 60, 75, max(mod_data[[col_names[3]]]))
 cut_brks_BUAG
 
 # Chop land cover category into four even categories (not including zeros)
@@ -690,7 +691,7 @@ mod_data<-data.frame(mod_data, vect_cats)
 names(mod_data)[(NCOL(mod_data)-4):NCOL(mod_data)]<-mod_data_short_names
 
 ##
-rm(vect_cats,  prc_labs, short_habs, mod_data_short_names,  cut_labs, cut_brks, i)
+rm(vect_cats, short_habs, mod_data_short_names,  cut_labs, cut_brks, i)
 
 rm(list = ls(pattern="cut_brks_"))
 
