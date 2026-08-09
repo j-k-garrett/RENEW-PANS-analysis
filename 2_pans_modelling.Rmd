@@ -13,7 +13,7 @@ library(officedown)
 library(broom)
 library(broom.helpers)
 #library(car)
-#library(cowplot)
+library(cowplot)
 #library(DiagrammeR)
 
 #library(DiagrammeRsvg)
@@ -30,6 +30,7 @@ library(gtsummary)
 library(lavaan)
 
 #library(lavaanPlot)
+library(lmtest)
 library(RColorBrewer)
 #library(rmarkdown)
 library(rsq)
@@ -138,12 +139,21 @@ rm(i)
 
 ## Fit adjusted model predicting nearby nature qualities composite by land cover proportions
 adj_glm_habs<-glm(M1_Q5_comp ~Region +Home_IMD_quint + Income  + ACNG_A_pred_ptc_wtd_percent_cats+ AH_A_pred_ptc_wtd_percent_cats + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions + season, data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum") )
+
+base_adj_glm<-glm(M1_Q5_comp ~Region +Home_IMD_quint + Income  + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions + season, data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum") )
+
+anova_habs<-anova(base_adj_glm, adj_glm_habs, test = "F")
+delta_r2_habs <- rsq(adj_glm_habs) - rsq(base_adj_glm)
+
 ## Generate model summary table
 #adj_glm_habs_tbl<-glm_tbl_regression(adj_glm_habs)
 
 ## Fit adjusted model predicting nearby nature qualities composite by land cover number
 adj_glm_num_hab<-glm(M1_Q5_comp ~Region +Home_IMD_quint + Income  +  num_habs_wtd + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions + season, data = mod_data,weights = rescaled_weights, contrasts = list(Region="contr.sum") )
 
+anova_num_habs<-anova(base_adj_glm, adj_glm_num_hab, test = "F")
+delta_r2_num_habs <- rsq(adj_glm_num_hab) - rsq(base_adj_glm)
+rm(base_adj_glm)
 
 ## List all model objects
 list_mods<-ls(pattern = "adj")
@@ -166,11 +176,16 @@ t_merge<-tbl_merge(tbls = list(unadj_glm_Region_tbl,
                                unadj_glm_IG_tbl,  
                                adj_glm_habs_tbl), 
                    tab_spanner = c("Unadj - Region", "Unadj - IMD", "Unadj - income", "Unadj -ACNG", "Unadj -AH", "Unadj -BMYW","Unadj -BUAG","Unadj -IG", "Adj")) %>%
-  modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  modify_table_body(
+  ~ .x %>%
+    arrange(row_type == "glance_statistic")) %>%
   as_flex_table() 
 
 ## Print table
 t_merge
+anova_habs
+delta_r2_habs
+rm(anova_habs, delta_r2_habs)
 
 print("Number of land covers")
 
@@ -178,17 +193,20 @@ print("Number of land covers")
 t_merge<-tbl_merge(tbls = list(unadj_glm_Num_tbl,
                                adj_glm_num_hab_tbl), 
                    tab_spanner = c("Unadj", "Adj")) %>%
-modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  modify_table_body(
+  ~ .x %>%
+    arrange(row_type == "glance_statistic")) %>%
   as_flex_table() 
 
 
 ## print table
 t_merge
-
+anova_num_habs
+delta_r2_num_habs
 
 list_tbls<-ls(pattern ="adj_glm.*tbl")
 rm(list = list_tbls)
-rm(t_merge, list_tbls, mod_tbl, i)
+rm(t_merge, list_tbls, mod_tbl, i, anova_num_habs, delta_r2_num_habs)
 
 ```
 
@@ -299,11 +317,12 @@ rm(list = ls(pattern = "tidy_unadj"))
 
 ## Plot predicted nearby nature qualities composite by number of habitats, adjusted
 predict_num_habs<- predict_response(adj_glm_num_hab, terms = "num_habs_wtd")
-plot(predict_num_habs, facets = FALSE, show_title= FALSE)+
+predict_num_habs_comp<-plot(predict_num_habs, facets = FALSE, show_title= FALSE)+
   xlab("Number of habitats")+
   ylab("Predicted composite score")+
   xlim(c(1, 17))
 
+predict_num_habs_comp
 # Save plot
 setwd(Figures_wd)
 ggsave("RQ1_nature_comp_adj_coefs_num_habs.png", dpi = 300, height = 4, width = 4.5)
@@ -434,6 +453,7 @@ adj_vglm<-vglm(local_good_nature_ord ~ Region +Home_IMD_quint + Income  +ACNG_A_
 
 tidy_adj_vglm<-tidy_vglm(adj_vglm)
 tidy_adj_vglm$variable[2:9]<-levels(mod_data$Region)[1:8]
+
 
 ## Name all intercepts with predictor variable for later merging
 list_tidy_unadj<-ls(pattern = "tidy_vglm_unadj")
@@ -910,86 +930,12 @@ rm(adding_model_info, all_results, all_unadj, null, null_par, plot_by_predictor,
 
 
 
-## Intersectionalities
-```{r testing_interactions, echo = FALSE, eval =FALSE}
-
-## variables of interest
-## age, gender, income, urban status, ethnicity
-# 1. is there a signfiicant interaction between income and the other variables of interest?
-
-##what if male is the reference category? No difference here
-adj_comp_gender_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income*Gender +  Age_Band +  Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-adj_comp_gender_int_tbl<-glm_tbl_regression(adj_comp_gender_int)
-
-## Does this one work? Yes
-
-adj_comp_age_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income*Age_Band +  Gender +  Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-adj_comp_age_int_tbl<-glm_tbl_regression(adj_comp_age_int)
-##Does this one work? Yes
-
-adj_comp_ethnicity_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income* Ethnicity_cats  +  Gender +  Age_Band + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-adj_comp_ethnicity_int_tbl<-glm_tbl_regression(adj_comp_ethnicity_int)
-## Does this one work? Yes
-
-adj_comp_illness_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint +Income*Illnesses + Ethnicity_cats  +  Gender +  Age_Band + Marital_cats + car_cats + Gen_health_3cats +  covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-adj_comp_illness_int_tbl<-glm_tbl_regression(adj_comp_illness_int)
-## Does this one work? Yes
-
-t_merge<-tbl_merge(tbls = list(adj_comp_gender_int_tbl, adj_comp_age_int_tbl, adj_comp_ethnicity_int_tbl, adj_comp_illness_int_tbl), tab_spanner = c("Gender","Age","Ethnicity","Illness")) %>%
-modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
-  as_flex_table() 
-
-t_merge
-
-rm(adj_comp_gender_int_tbl, adj_comp_age_int_tbl, adj_comp_ethnicity_int_tbl, adj_comp_illness_int_tbl, t_merge, adj_comp_gender_int, adj_comp_age_int, adj_comp_ethnicity_int, adj_comp_illness_int)
-
-## Gender interactions
-
-adj_comp_age_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income + Age_Band*Gender +  Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-adj_comp_age_int_tbl<-glm_tbl_regression(adj_comp_age_int)
-##does this one work? Yes
-
-adj_comp_ethnicity_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income + Ethnicity_cats*Gender +  Age_Band + Marital_cats + car_cats + Gen_health_3cats + Illnesses + covid_restrictions + Year+ BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-adj_comp_ethnicity_int_tbl<-glm_tbl_regression(adj_comp_ethnicity_int)
-## Does this one work? Yes
-
-
-adj_comp_illness_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint +Income + Illnesses* Gender + Ethnicity_cats +  Age_Band + Marital_cats + car_cats + Gen_health_3cats +  covid_restrictions + Year + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + ACNG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats  + season, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-adj_comp_illness_int_tbl<-glm_tbl_regression(adj_comp_illness_int)
-## Does this one work? Yes
-
-t_merge<-tbl_merge(tbls = list( adj_comp_age_int_tbl, adj_comp_ethnicity_int_tbl, adj_comp_illness_int_tbl), tab_spanner = c("Age","Ethnicity","Illness")) %>%
-modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
-  as_flex_table() 
-print("Gender interactions")
-t_merge
-
-rm(adj_comp_gender_int_tbl, adj_comp_age_int_tbl, adj_comp_ethnicity_int_tbl, adj_comp_illness_int_tbl, t_merge, adj_comp_gender_int, adj_comp_age_int, adj_comp_ethnicity_int, adj_comp_illness_int)
-
-## What about three way interactions?
-## also need to check sample size
-#adj_comp_age_gender_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income_cats*Gender*Age_Band +  Ethnicity_cats + Marital_Status + children_2cats + car_cats + Dog + Gen_health_3cats + Illnesses + season + Year, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-## Nope
-
-#adj_comp_ethnicity_gender_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income_cats* Ethnicity_cats*Gender +  Age_Band + Marital_Status + children_2cats + car_cats + Dog + Gen_health_3cats + Illnesses + season + Year, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-## Nope
-
-#adj_comp_ethnicity_age_int<-glm(M1_Q5_comp ~Region + Home_IMD_quint + Income_cats* Ethnicity_cats*Age_Band +Gender   + Marital_Status + children_2cats + car_cats + Dog + Gen_health_3cats+ Illnesses + season + Year, data = pans_data[no_missing_ind_gender,], contrasts = list(Region="contr.sum") )
-## yes
-
-## A three-water interaction between income, ethnicity and age was found to be signfiicant. As such, we created a composite variable? Actually why do we need to do this, can just do the interaction?
-##Anyway, first I need to check sample size
-
-#tbl_ethnicity_age_income<-table(pans_data$Income[no_missing_ind_gender],pans_data$Age_Band[no_missing_ind_gender], pans_data$Ethnicity_cats[no_missing_ind_gender] ) %>%
-#  as.data.frame() %>%
- # rename('Income' = Var1, 'Ethnicity'=Var2, 'Age' = Var3) %>%
-#  pivot_wider(names_from = Income, values_from = Freq)
-#tbl_ethnicity_age_income
-```
 
 <!---BLOCK_LANDSCAPE_START--->
 
 # RQ1, Outcome 3 - Quality satisfaction
+
+
 
 ```{r glm_quality_satisfaction, echo = FALSE, warning = FALSE}
 
@@ -1014,6 +960,9 @@ rm(i)
 ## Fit adjusted model
 adj_glm_need<-glm(Nature_opp_met_bin~Region +Home_IMD_quint + Income  + ACNG_A_pred_ptc_wtd_percent_cats+ AH_A_pred_ptc_wtd_percent_cats + BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions  + season, data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum"), family = binomial )
 
+base_glm_need<-glm(Nature_opp_met_bin~Region +Home_IMD_quint + Income  + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions  + season, data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum"), family = binomial )
+
+
 adj_glm_need_num<-glm(Nature_opp_met_bin ~Region +Home_IMD_quint + Income  + num_habs_wtd + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions  + season , data = mod_data,weights = rescaled_weights, contrasts = list(Region="contr.sum"), family = binomial )
 
 unadj_glm_need_num<-glm(Nature_opp_met_bin ~ num_habs_wtd  , data = mod_data,weights = rescaled_weights, family = binomial )
@@ -1028,17 +977,23 @@ for (i in 1:length(list_mods)){
 
 ## Merge all unadjusted and adjusted tables
 t_merge<-tbl_merge(tbls = list(unadj_glm_Region_tbl, unadj_glm_IMD_tbl, unadj_glm_Inc_tbl,unadj_glm_ACNG_tbl, unadj_glm_AH_tbl, unadj_glm_BMYW_tbl, unadj_glm_BUAG_tbl, unadj_glm_IG_tbl,  adj_glm_need_tbl), tab_spanner = c("Unadj - Region", "Unadj - IMD", "Unadj - income", "Unadj -ACNG", "Unadj -AH", "Unadj -BMYW","Unadj -BUAG","Unadj -IG", "Adj")) %>%
-modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  modify_table_body( ~ .x %>%
+    arrange(row_type == "glance_statistic")) %>%
   as_flex_table() 
 
 t_merge
 rm(t_merge)
 
+lrtest(base_glm_need ,adj_glm_need)
+
+rsq(adj_glm_need) - rsq(base_glm_need)
+
 print("Number of habitats")
 
 # Merge unadjusted and adjusted number of land covers model results
 t_merge<-tbl_merge(tbls = list(unadj_glm_need_num_tbl,adj_glm_need_num_tbl), tab_spanner = c("Unadj", "Adj")) %>%
-modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  modify_table_body(~.x %>%
+                      arrange(row_type="glance_statistic")) %>%
   as_flex_table() 
 
 t_merge
@@ -1163,16 +1118,19 @@ predict_num_habs<- predict_response(adj_glm_need_num, terms = "num_habs_wtd")
 
 
 ## plot probability of satisfaction with nearby nature opportunities by number of land covers
-plot(predict_num_habs, facets = FALSE, show_title= FALSE)+
+predict_num_habs_need<-plot(predict_num_habs, facets = FALSE, show_title= FALSE)+
   xlab("Number of habitats")+
   ylab("Predicted probability")+
   xlim(c(1, 17))+
   ylim(c(0.65, 0.85))
 
-setwd(Figures_wd)
-ggsave("RQ1_nature_sat_pred_probs_num_habs.png", dpi = 300, height = 4, width = 4.5)
 
-rm(p, i, j, ind, list_mods, mod_tbl, terms, predictor_names, predict_num_habs, short_lsoas_habs, predictor_labels, pred_code)
+plot_grid(predict_num_habs_comp, predict_num_habs_need, labels = c('A', 'B'), label_size = 12)
+
+setwd(Figures_wd)
+ggsave("RQ1_pred_plots_num_habs.png", dpi = 300, height = 4, width = 8)
+
+rm(p,predict_num_habs_comp, predict_num_habs_need, i, j, ind, list_mods, mod_tbl, terms, predictor_names, predict_num_habs, short_lsoas_habs, predictor_labels, pred_code)
 rm(list = ls(pattern = "unadj_glm"))
 rm(list = ls(pattern = "adj_glm"))
 
