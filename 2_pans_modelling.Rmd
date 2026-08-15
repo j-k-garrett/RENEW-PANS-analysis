@@ -1641,49 +1641,109 @@ mod_data$IG_cats_num<-as.numeric(mod_data$IG_cats_ord)
 ## Specify model
 model_spec <- ' 
 # direct effect
-             Wellbeing_sat_num ~1+ b2*M1_Q5_comp + b1*visit_freq_bin_num + c1*ACNG_cats_num + c2*AH_cats_num + c3*BMYW_cats_num + c4*BUAG_cats_num + c5*IG_cats_num + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs + a16_24 + a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+             Wellbeing_sat_num ~1+ b2*M1_Q5_comp + b1*visit_freq_bin_num + 
+  acng_c*ACNG_cats_num + ah_c*AH_cats_num + bmyw_c*BMYW_cats_num + buag_c*BUAG_cats_num + ig_c*IG_cats_num +
+    imd_c*Home_IMD_quint_num + inc_c*income_num +
+  east_c*East +em_c*East_Midlands + london_c*London + ne_c*North_East +nw_c*North_West + sw_c*South_West + wm_c*West_Midlands +yh_c*Yorkshire_and_the_Humber +
+ Gender_2levs + a16_24 + a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
              
            # mediators
   
-            M1_Q5_comp ~1+ h1q*ACNG_cats_num + h2q*AH_cats_num + h3q*BMYW_cats_num + h4q*BUAG_cats_num + h5q*IG_cats_num + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs +  a16_24 + a25_39 + a55_64 + a65+ Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+            M1_Q5_comp ~1+ 
+              acng_q*ACNG_cats_num +  ah_q*AH_cats_num +  bmyw_q*BMYW_cats_num + buag_q*BUAG_cats_num +ig_q*IG_cats_num +
+                imd_q*Home_IMD_quint_num + inc_q*income_num +
+                east_q*East + em_q*East_Midlands + london_q*London + ne_q*North_East + nw_q*North_West + sw_q*South_West +  wm_q*West_Midlands + yh_q*Yorkshire_and_the_Humber +
+ + Gender_2levs +  a16_24 + a25_39 + a55_64 + a65+ Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
             
-             visit_freq_bin_num ~ 1+ d*M1_Q5_comp + h1v*ACNG_cats_num + h2v*AH_cats_num + h3v*BMYW_cats_num + h4v*BUAG_cats_num + h5v*IG_cats_num + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs  +  a16_24 + a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+             visit_freq_bin_num ~ 1+ d*M1_Q5_comp + acng_v*ACNG_cats_num + ah_v*AH_cats_num + bmyw_v*BMYW_cats_num + buag_v*BUAG_cats_num + ig_v*IG_cats_num +
+               imd_v*Home_IMD_quint_num + inc_v*income_num + 
+               east_v*East + em_v*East_Midlands + london_v*London + ne_v*North_East + nw_v*North_West + sw_v*South_West + wm_v*West_Midlands + yh_v*Yorkshire_and_the_Humber + Gender_2levs  +  a16_24 + a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
 
             
            # indirect effects (a*b)
            
-             h1vb1 := h1v*b1
-             h2vb1 := h2v*b1
-             h3vb1 := h3v*b1
-             h4vb1 := h4v*b1
-             h5vb1 := h5v*b1
+             acng_vb1 := acng_v*b1
+             ah_vb1 := ah_v*b1
+             bmyw_vb1 := bmyw_v*b1
+             buag_vb1 := buag_v*b1
+             ig_vb1 := ig_v*b1
+             imd_vb1 := imd_v*b1
+             inc_vb1 := inc_v*b1
+             east_vb1 := east_v*b1
+             em_vb1 := em_v*b1
+             london_vb1 := london_v*b1
+             ne_vb1 := ne_v*b1
+             nw_vb1 := nw_v*b1
+             sw_vb1 := sw_v*b1
+             wm_vb1 := wm_v*b1
+             yh_vb1 := yh_v*b1
              
-             h1qb2 := h1q*b2
-             h2qb2 := h2q*b2
-             h3qb2 := h3q*b2
-             h4qb2 := h4q*b2
-             h5qb2 := h5q*b2
+            acng_qb2 := acng_q*b2
+             ah_qb2 := ah_q*b2
+             bmyw_qb2 := bmyw_q*b2
+             buag_qb2 := buag_q*b2
+             ig_qb2 := ig_q*b2
+              imd_qb2 := imd_q*b2
+             inc_qb2 := inc_q*b2
+             east_qb2 := east_q*b2
+             em_qb2 := em_q*b2
+             london_qb2 := london_q*b2
+             ne_qb2 := ne_q*b2
+             nw_qb2 := nw_q*b2
+             sw_qb2 := sw_q*b2
+             wm_qb2 := wm_q*b2
+             yh_qb2 := yh_q*b2
              
-             h1qdb1 := h1q*d*b1
-             h2qdb1 := h2q*d*b1
-             h3qdb1 := h3q*d*b1
-             h4qdb1 := h4q*d*b1
-             h5qdb1 := h5q*d*b1
+             acng_qdb1 := acng_q*d*b1
+             ah_qdb1 := ah_q*d*b1
+             bmyw_qdb1 := bmyw_q*d*b1
+             buag_qdb1 := buag_q*d*b1
+             ig_qdb1 := ig_q*d*b1
+             imd_qdb1 := imd_q*d*b1
+             inc_qdb1 := inc_q*d*b1
+             east_qdb1 := east_q*d*b1
+             em_qdb1 := em_q*d*b1
+             london_qdb1 := london_q*d*b1
+             ne_qdb1 := ne_q*d*b1
+             nw_qdb1 := nw_q*d*b1
+             sw_qdb1 := sw_q*d*b1
+             wm_qdb1 := wm_q*d*b1
+             yh_qdb1 := yh_q*d*b1
              
              ## All indirect
-             ttl_indirect_h1 := (h1v*b1) + (h1q*b2) + (h1q*d*b1)
-             ttl_indirect_h2 := (h2v*b1) + (h2q*b2) + (h2q*d*b1)
-             ttl_indirect_h3 := (h3v*b1) + (h3q*b2) + (h3q*d*b1)
-             ttl_indirect_h4 := (h4v*b1) + (h4q*b2) + (h4q*d*b1)
-             ttl_indirect_h5 := (h5v*b1) + (h5q*b2) + (h5q*d*b1)
+             ttl_indirect_acng := (acng_v*b1) + (acng_q*b2) + (acng_q*d*b1)
+             ttl_indirect_ah := (ah_v*b1) + (ah_q*b2) + (ah_q*d*b1)
+             ttl_indirect_bmyw := (bmyw_v*b1) + (bmyw_q*b2) + (bmyw_q*d*b1)
+             ttl_indirect_buag := (buag_v*b1) + (buag_q*b2) + (buag_q*d*b1)
+             ttl_indirect_ig:= (ig_v*b1) + (ig_q*b2) + (ig_q*d*b1)
              
+              ttl_indirect_imd := (imd_v*b1) + (imd_q*b2) + (imd_q*d*b1)
+             ttl_indirect_inc := (inc_v*b1) + (inc_q*b2) + (inc_q*d*b1)
+             ttl_indirect_east := (east_v*b1) + (east_q*b2) + (east_q*d*b1)
+            ttl_indirect_em := (em_v*b1) + (em_q*b2) + (em_q*d*b1)
+             ttl_indirect_london := (london_v*b1) + (london_q*b2) + (london_q*d*b1)
+             ttl_indirect_ne := (ne_v*b1) + (ne_q*b2) + (ne_q*d*b1)
+             ttl_indirect_nw := (nw_v*b1) + (nw_q*b2) + (nw_q*d*b1)
+             ttl_indirect_sw := (sw_v*b1) + (sw_q*b2) + (sw_q*d*b1)
+             ttl_indirect_wm :=  (wm_v*b1) + (wm_q*b2) + (wm_q*d*b1)
+             ttl_indirect_yh := (yh_v*b1) + (yh_q*b2) + (yh_q*d*b1)
              
            # total effects
-             totalh1 := (h1v*b1) + (h1q*b2) + (h1q*d*b1) + c1
-             totalh2 := (h2v*b1) + (h2q*b2) + (h2q*d*b1) + c2
-             totalh3 := (h3v*b1) + (h3q*b2) + (h3q*d*b1) + c3
-             totalh4 := (h4v*b1) + (h4q*b2) + (h4q*d*b1) + c4
-             totalh5 := (h5v*b1) + (h5q*b2) + (h5q*d*b1) + c5
+             totalacng := (acng_v*b1) + (acng_q*b2) + (acng_q*d*b1) + acng_c
+             totalah := (ah_v*b1) + (ah_q*b2) + (ah_q*d*b1) + ah_c
+             totalbmyw := (bmyw_q*b1) + (bmyw_q*b2) + (bmyw_q*d*b1) + bmyw_c
+             totalbuag := (buag_v*b1) + (buag_q*b2) + (buag_q*d*b1) + buag_c
+             totalig := (ig_v*b1) + (ig_q*b2) + (ig_q*d*b1) + ig_c
+             ttl_imd := (imd_v*b1) + (imd_q*b2) + (imd_q*d*b1) + imd_c
+             ttl_inc := (inc_v*b1) + (inc_q*b2) + (inc_q*d*b1) + inc_c
+             ttl_east := (east_v*b1) + (east_q*b2) + (east_q*d*b1) + east_c
+            ttl_em := (em_v*b1) + (em_q*b2) + (em_q*d*b1)+ em_c
+             ttl_london := (london_v*b1) + (london_q*b2) + (london_q*d*b1) + london_c
+             ttl_ne := (ne_v*b1) + (ne_q*b2) + (ne_q*d*b1) + ne_c
+             ttl_nw := (nw_v*b1) + (nw_q*b2) + (nw_q*d*b1) + nw_c
+             ttl_sw := (sw_v*b1) + (sw_q*b2) + (sw_q*d*b1) + sw_c
+             ttl_wm :=  (wm_v*b1) + (wm_q*b2) + (wm_q*d*b1) + wm_c
+             ttl_yh := (yh_v*b1) + (yh_q*b2) + (yh_q*d*b1) + yh_c
          '
 
 ## Fit SEM
