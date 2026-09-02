@@ -1,0 +1,99 @@
+---
+title: "Postcode_descriptives"
+author: "Jo Garrett"
+date: "2026-06-23"
+output: word_document
+---
+
+```{r libraries, echo = FALSE}
+library(terra)
+library(dplyr)
+```
+
+
+
+## Read in postcode data
+Postcode data from Code-Point® data by Ordnance Survey and downloaded from digimaps
+```{r get_postcode_data, echo = FALSE}
+
+
+ setwd("E:\\Projects\\RENEW\\Jo\\PANS\\Mapping_short_paper\\Data\\boundary_line\\boundaryline_4652215")
+
+England_boundary<-vect("english_region_region.shp") %>%
+  aggregate()
+
+## Polygons
+data_d<-"E:\\Projects\\RENEW\\Jo\\PANS\\Mapping_short_paper\\Data"
+## Set working directory for postcode data
+postcode_d<-(file.path(data_d, "Code_point", "codepoint-poly_4612799"))
+setwd(postcode_d)
+# Postcode data stored as .ntf
+list_folders<-dir()
+ind<-grep("pc_code", list_folders) 
+list_folders<-list_folders[ind]
+
+rm(ind)
+
+## Create function to find maximum diameter of a polygon
+max_diam <- function(poly) {
+  h <- convHull(poly)
+  coords <- crds(h)
+  max(dist(coords))
+}
+
+
+## Read in each postcode spatial dataset
+for (folder_name in list_folders){
+  layers<-dir(file.path(postcode_d, folder_name))
+  for (layer_name in layers){
+    shapefile_name<-dir(file.path(postcode_d,folder_name,layer_name))
+    ind<-grep(".shp",  shapefile_name) 
+    shapefile_name<- shapefile_name[ind]
+    pcs_data<-vect(file.path(postcode_d,folder_name,layer_name, shapefile_name))
+    in_england<-relate(pcs_data, England_boundary, "within")
+    rm( ind, shapefile_name)
+    postcode_area<-expanse(pcs_data)
+    postcode_min_diameter<-width(pcs_data)
+    postcode_max_diameter <- lapply(1:nrow(pcs_data), function(i) {
+      max_diam(pcs_data[i])
+    }) %>%
+      unlist()
+    postcode_max_diameter <- unlist(postcode_max_diameter)
+    postcode_df<-data.frame("Postcode"=pcs_data$POSTCODE,
+                            "Calculated_Area"=postcode_area,
+                            "min_diameter"=postcode_min_diameter,
+                            "max_diameter"= postcode_max_diameter,
+                            "in_england"=as.vector(in_england)
+                            )
+    assign(paste0(layer_name, "_postcode_geometries_df"), postcode_df)
+    rm(postcode_df, postcode_area, postcode_max_diameter, postcode_min_diameter, pcs_data)
+  }
+}
+
+rm(layer_name, layers,  folder_name, list_folders)
+list_postcode_geoms_df<-ls(pattern = "postcode_geometries_df")
+
+all_postcode_geoms<-do.call(rbind, mget(list_postcode_geoms_df))
+rm(list= list_postcode_geoms_df)
+ rm(list_postcode_geoms_df)
+
+## Retain only English postcodes 
+all_postcode_geoms<-all_postcode_geoms[which(all_postcode_geoms$in_england==TRUE),] 
+
+mean(all_postcode_geoms$min_diameter)
+sd(all_postcode_geoms$min_diameter)
+quantile(all_postcode_geoms$min_diameter, probs = c(0,0.05,0.5,0.95, 1))
+
+options(scipen=999)
+mean(all_postcode_geoms$max_diameter)
+sd(all_postcode_geoms$max_diameter)
+quantile(all_postcode_geoms$max_diameter, probs = c(0,0.05,0.5,0.95, 1))
+
+mean(all_postcode_geoms$Calculated_Area)
+quantile(all_postcode_geoms$Calculated_Area, probs = c(0,0.05,0.5,0.95, 1))
+
+rm(England_boundary, in_england)
+
+
+
+```
