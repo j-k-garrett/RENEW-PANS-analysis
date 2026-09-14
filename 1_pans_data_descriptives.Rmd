@@ -21,7 +21,7 @@ library(plotrix)
 library(plyr)
 library(pracma)
 library(psych)
-library(questionr)
+library(questionr, lib.loc = "E:\\Projects\\Users\\JoGarrett\\R_packages")
 library(RColorBrewer)
 library(readxl)
 library(rmarkdown)
@@ -350,11 +350,61 @@ mod_data$visit_freq_bin<-mod_data$M1_Q1 %>%
   as.factor()%>%
   fct_recode('<1 a week' = "Less often", '<1 a week' = "Once or twice a month", '>=1 a week' = "Every day",'>=1 a week' = "Twice a week", '>=1 a week' = "More than twice a week, but not every day", '>=1 a week' = "Once a week",'<1 a week' = "Never", '<1 a week' = "Once every 2-3 months")
 
+## Create binary visit frequencies variables for sensitivity analysis
+
+## Monthly visits
+mod_data$visit_freq_bin_month<-mod_data$M1_Q1 %>%
+  as.factor()%>%
+  fct_recode('<1 a month' = "Less often", '>=1 a month' = "Once or twice a month", '>=1 a month' = "Every day",'>=1 a month'= "Twice a week",'>=1 a month' = "More than twice a week, but not every day", '>=1 a month' = "Once a week",'<1 a month'  = "Never", '<1 a month'  = "Once every 2-3 months")
+
+
+## More than once a week
+mod_data$visit_freq_bin_often<-mod_data$M1_Q1 %>%
+  as.factor()%>%
+  fct_recode('<=1 a week' = "Less often", '<=1 a week' = "Once or twice a month", '>1 a week' = "Every day",'>1 a week' = "Twice a week", '>1 a week' = "More than twice a week, but not every day", '<=1 a week' = "Once a week",'<=1 a week' = "Never", '<=1 a week' = "Once every 2-3 months")
+
 
 ## Explore visit frequency variables
+## Weekly visits
 tbl_visit_freq<-as.data.frame(prop.table(questionr::wtd.table(mod_data$M1_Q1, mod_data$visit_freq_bin, weights = mod_data$rescaled_weights))*100) %>%
   filter( Freq > 0)
 tbl_visit_freq$Var2<-factor(tbl_visit_freq$Var2, levels = c("<1 a week", ">=1 a week"))
+
+tbl_visit_freq$Var1<-factor(tbl_visit_freq$Var1, levels = c("Every day","More than twice a week, but not every day","Twice a week","Once a week", "Once or twice a month","Once every 2-3 months","Less often", "Never"))
+
+p<-ggplot(tbl_visit_freq, aes(x=Var2,  y = Freq, fill= Var1))+
+  geom_bar(position="stack", stat="identity")+
+  theme_minimal()+
+  ylab("%age of respondents")+
+  xlab("Natural space visit frequency")+
+  scale_fill_manual(values =c(RColorBrewer::brewer.pal(8, "RdYlBu"), rep("gray65",2)), name = "")+
+  ylim(c(0, 80))
+p
+rm(tbl_visit_freq, p)
+
+## Monthly visits
+tbl_visit_freq<-as.data.frame(prop.table(questionr::wtd.table(mod_data$M1_Q1, mod_data$visit_freq_bin_month, weights = mod_data$rescaled_weights))*100) %>%
+  filter( Freq > 0)
+tbl_visit_freq$Var2<-factor(tbl_visit_freq$Var2, levels = c("<1 a month", ">=1 a month"))
+
+tbl_visit_freq$Var1<-factor(tbl_visit_freq$Var1, levels = c("Every day","More than twice a week, but not every day","Twice a week","Once a week", "Once or twice a month","Once every 2-3 months","Less often", "Never"))
+
+p<-ggplot(tbl_visit_freq, aes(x=Var2,  y = Freq, fill= Var1))+
+  geom_bar(position="stack", stat="identity")+
+  theme_minimal()+
+  ylab("%age of respondents")+
+  xlab("Natural space visit frequency")+
+  scale_fill_manual(values =c(RColorBrewer::brewer.pal(8, "RdYlBu"), rep("gray65",2)), name = "")+
+  ylim(c(0, 80))
+p
+rm(tbl_visit_freq, p)
+
+## More often than weekly
+
+## Monthly visits
+tbl_visit_freq<-as.data.frame(prop.table(questionr::wtd.table(mod_data$M1_Q1, mod_data$visit_freq_bin_often, weights = mod_data$rescaled_weights))*100) %>%
+  filter( Freq > 0)
+tbl_visit_freq$Var2<-factor(tbl_visit_freq$Var2, levels = c("<=1 a week", ">1 a week"))
 
 tbl_visit_freq$Var1<-factor(tbl_visit_freq$Var1, levels = c("Every day","More than twice a week, but not every day","Twice a week","Once a week", "Once or twice a month","Once every 2-3 months","Less often", "Never"))
 
