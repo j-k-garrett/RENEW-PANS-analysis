@@ -42,6 +42,7 @@ library(tidyr)
 library(tidySEM)
 library(VGAM)
 
+library(fs, lib.loc = "E:\\Projects\\Users\\JoGarrett\\R_packages")
 #library(lavaan.survey)
 ```
 
@@ -1413,163 +1414,95 @@ ggsave("RQ2_OR_visit_freq_adj.png", dpi = 300, height = 4, width = 6)
 rm(p, all_tidy_mods, adj_good_nature, adj_nature_sat, adj_qual_comp, all_results_num_habs)
 ```
 
+## Sensitivity analysis
+### RQ2, Outcome 2 - Visit frequency (monthly)
 
-```{r sem, echo = FALSE, eval = FALSE}
+```{r visit_freq_monthly, echo = FALSE, warning = FALSE}
 
-## convert variables to ordered factors so they can be easily converted to numeric
-pans_data$Home_IMD_quint_ord<-ordered(pans_data$Home_IMD_quint)
-pans_data$Home_IMD_quint_num<-as.numeric(pans_data$Home_IMD_quint_ord)
+## Set reference levle of outcome
+mod_data$visit_freq_bin_month<-relevel(mod_data$visit_freq_bin_month, ref = "<1 a month")
 
-pans_data$income_ord<-ordered(pans_data$Income)
-pans_data$income_num<-as.numeric(pans_data$income_ord)
-
-pans_data$visit_freq_bin_ord<-ordered(pans_data$visit_freq_bin)
-pans_data$visit_freq_bin_num<-as.numeric(pans_data$visit_freq_bin_ord)-1
-
-## Create dummy variables for categorial variables
-region_dummies<-dummy_cols(pans_data$Region)[,2:10]
-names(region_dummies)<-gsub(".data_", "", names(region_dummies))
-names(region_dummies)<-gsub(" ", "_", names(region_dummies))
-pans_data<-cbind(pans_data, region_dummies)
-
-age_dummies<-dummy_cols(pans_data$Age_Band)[,2:6]
-names(age_dummies)<-gsub(".data_", "a", names(age_dummies))
-names(age_dummies)<-gsub("-", "_", names(age_dummies))
-names(age_dummies)<-gsub("\\+", "", names(age_dummies))
-pans_data<-cbind(pans_data, age_dummies)
-rm(region_dummies, age_dummies)
-
-year_dummies<-dummy_cols(pans_data$Year)[,2:5]
-names(year_dummies)<-gsub(".data_", "Y", names(year_dummies))
-pans_data<-cbind(pans_data,year_dummies)
-rm(year_dummies)
-
-covid_dummies<-dummy_cols(pans_data$covid_restrictions)[,2:5]
-names(covid_dummies)<-gsub(".data_", "", names(covid_dummies))
-names(covid_dummies)<-gsub(" ", "_", names(covid_dummies))
-pans_data<-cbind(pans_data,covid_dummies)
-rm(covid_dummies)
-
-## Sort factor levels and convert to numeric where necessary
-pans_data$Gender_2levs<-factor(pans_data$Gender, levels = c("Female", "Male"))
-
-pans_data$Gen_health_3cats<-factor(pans_data$Gen_health_3cats, levels = c("Bad","Fair","Good"))
-pans_data$Gen_health_3cats_ord<-ordered(pans_data$Gen_health_3cats)
-pans_data$Gen_health_3cats_num<-as.numeric(pans_data$Gen_health_3cats_ord)
-
-qual_model <- '
-# latent variable
-Green_space_quality =~ M1_Q5_a_ord + M1_Q5_b_ord + M1_Q5_c_ord + M1_Q5_d_ord + M1_Q5_e_ord + M1_Q5_f_ord + M1_Q5_g_ord
-
-# Regressions
-## south east excluded from region, 16 - 24 excluded from age, 2020 excluded from year, no restrictions excluded from covid restrictions
-
-visit_freq_bin_num ~ Green_space_quality + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs  + a25_39 + a40_54 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats_ord + Illnesses + Y2021 + Y2022 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown
-
-Wellbeing_sat_num ~ Green_space_quality + visit_freq_bin_num + Home_IMD_quint_num + income_num + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs + a25_39 + a40_54 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats_ord + Illnesses + Y2021 + Y2022  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown
-
-Green_space_quality ~ Home_IMD_quint_num + income_num + + East + East_Midlands + London + North_East + North_West + South_West + West_Midlands + Yorkshire_and_the_Humber + Gender_2levs + a25_39 + a40_54 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Gen_health_3cats_ord + Illnesses + Y2021 + Y2022  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown
-'
-
-fit <- sem(qual_model, data = mod_data[no_missing_ind_gender,])
-
-setwd(Results_wd)
-## Create standardised coefficients table
-## Presented in supp mats
-tidy_fit_stand<-standardizedSolution(fit) 
-
-## There are hundreds of rows, so only included key rows
-ind<-grep("Green_space_quality|visit_freq_bin_num|Wellbeing_sat_num", tidy_fit_stand$lhs)
-tidy_fit_stand<-tidy_fit_stand[ind,]
-rm(ind)
-tidy_fit_stand<-pivot_wider(tidy_fit_stand,id_cols = rhs, names_from = lhs, values_from = c( est.std,se, pvalue, ci.lower, ci.upper))
-
-cols_green<-grep("Green", names(tidy_fit_stand))
-cols_sat<-grep("Wellbeing", names(tidy_fit_stand))
-cols_visit<-grep("visit", names(tidy_fit_stand))
-tidy_fit_stand<-tidy_fit_stand[, c(1, cols_green, cols_visit, cols_sat)]
-rm(cols_green, cols_visit, cols_sat)
-
-tidy_fit_stand[,2:NCOL(tidy_fit_stand)]<-round(tidy_fit_stand[,2:NCOL(tidy_fit_stand)], digits =3)
-
-col_ind<-grep("pvalue", names(tidy_fit_stand))
-tidy_fit_stand$est.stars_Green_space_quality<-round(tidy_fit_stand$est.std_Green_space_quality, digits =2)
-tidy_fit_stand$est.stars_visit_freq_bin_num<-round(tidy_fit_stand$est.std_visit_freq_bin_num, digits =2)
-tidy_fit_stand$est.stars_Wellbeing_sat_num<-round(tidy_fit_stand$est.std_Wellbeing_sat_num, digits =2)
-
-stars_ind<-grep("stars", names(tidy_fit_stand))
-stars_names<-names(tidy_fit_stand)[stars_ind]
-for (i in 1:length(col_ind)){
-  ind<-which(tidy_fit_stand[col_ind[i]]<0.001)
-  tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "***")
-  ind<-which(tidy_fit_stand[col_ind[i]]<0.01 & tidy_fit_stand[col_ind[i]]>=0.001)
-   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind],"**")
-  ind<-which(tidy_fit_stand[col_ind[i]]<0.05 & tidy_fit_stand[col_ind[i]]>=0.01)
-   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "*")
+for (i in 1:length(RQ2_preds)){
+  ## For each perceived green and natural space quality predictor fit an unadjusted model predicting visit frequency as a binary outcome
+  formula <- reformulate(RQ2_preds[i],response = "visit_freq_bin_month")
+  RQ2_unadj<-glm(formula, na.action = na.omit,
+                 data = mod_data, weights = rescaled_weights, family = "binomial")
+  assign(paste0("unadj_", RQ2_pred_names[i]), RQ2_unadj)
+  ## Generate summary table with custom function
+  RQ2_unadj_tbl<-bin_tbl_regression(RQ2_unadj)
+  assign(paste0("unadj_", RQ2_pred_names[i], "_tbl"),  RQ2_unadj_tbl)
+  rm(RQ2_unadj,  RQ2_unadj_tbl)
+  
+    ## For each perceived green and natural space quality predictor fit an adjusted model predicting visit frequency as a binary outcome
+  formula <- reformulate(c(RQ2_preds[i], "Region + Home_IMD_quint + Income + Gender +  Age_Band +  Ethnicity_cats +  Marital_cats +  car_cats+ Dog +  Gen_health_3cats  + Illnesses + Year +covid_restrictions + season"),response = "visit_freq_bin_month")
+  RQ2_adj<-glm(formula, na.action = na.omit,
+               data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum"), family = "binomial")
+  assign(paste0("adj_", RQ2_pred_names[i]), RQ2_adj)
+  ## Produce summary table with custom function
+  RQ2_adj_tbl<-bin_tbl_regression(RQ2_adj)
+  assign(paste0("adj_", RQ2_pred_names[i], "_tbl"),  RQ2_adj_tbl)
+  rm(RQ2_adj,  RQ2_adj_tbl)
 }
 
-rm(i, col_ind, stars_ind, stars_names)
-tidy_fit_stand<-tidy_fit_stand[,c(1:2, 17, 3:7, 18, 8:12, 19, 13:16)]
+rm(formula, i)
 
-write.csv(tidy_fit_stand, "tidy_sem_results_standardised.csv")
+## Merge all unadjusted and adjusted model tables
+t_merge<-tbl_merge(tbls = list(unadj_good_nature_tbl,adj_good_nature_tbl,unadj_qual_comp_tbl,adj_qual_comp_tbl,unadj_nature_sat_tbl,adj_nature_sat_tbl), tab_spanner = c("Unadj - Nature opps", "Adj - Nature opps", "Unadj - comp", "Adj - Comp" ,"Unadj - Sat", "Adj- Sat")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+## print model summary table
+t_merge   
 
-tidy_fit_stand_flex<-flextable(tidy_fit_stand)
-tidy_fit_stand_flex
+rm(list =ls(pattern = "adj.*_tbl"))
+rm(list =ls(pattern = "unadj"))
+rm(t_merge)
 
-rm(tidy_fit_stand, tidy_fit_stand_flex)
-
-### Prepare unstandardised results table, presented in main manuscript
-tidy_fit<-tidySEM::table_results(fit , digits = 3)
-ind<-grep("M1_Q5_comp|visit_freq_bin_num|Wellbeing_sat_num", tidy_fit$label)
-tidy_fit<-tidy_fit[ind,]
-rm(ind)
-ind<-grep("Variances|Means", tidy_fit$label)
-tidy_fit<-tidy_fit[-ind,]
-rm(ind)
-
-tidy_fit$Predictor<-NA
-tidy_fit$Outcome<-NA
-for (i in 1:NROW(tidy_fit)){
-  end_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[1]]
-  tidy_fit$Outcome[i]<-substr(tidy_fit$label[i], 1, end_char-1)
-  rm(end_char)
-  start_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[2]]
-  tidy_fit$Predictor[i]<-substr(tidy_fit$label[i], start_char+1, nchar(tidy_fit$label[i]))
-  rm(start_char)
-}
-
-
-tidy_fit<-pivot_wider(tidy_fit,id_cols = Predictor, names_from = Outcome, values_from = c( est_sig,se, pval,confint))
-
-cols_green<-grep("Green", names(tidy_fit))
-cols_sat<-grep("Wellbeing", names(tidy_fit))
-cols_visit<-grep("visit", names(tidy_fit))
-tidy_fit<-tidy_fit[, c(1, cols_green, cols_visit, cols_sat)]
-rm(cols_green, cols_visit, cols_sat)
-
-tidy_fit_flex<-flextable(tidy_fit) %>%
-  colformat_num(j = c("pval_Green_space_quality", "pval_visit_freq_bin_num",   "pval_Wellbeing_sat_num"  ), digits = 3)
-## print table
-tidy_fit_flex
-
-## save table
-setwd(Results_wd)
-write.csv(tidy_fit, "tidy_sem_results_unstandardised.csv")
-rm(tidy_fit, tidy_fit_flex)
-
-#summary(fit, standardized=TRUE, fit.measures=TRUE)
-#fitMeasures(fit, standardized=TRUE)
-#modindices(fit,sort=TRUE)
-
-## plot standardised results
-## This plot is too complicated though as it includes all variables
-## I did it manually in the paper
-p<-lavaanPlot(fit, coefs = TRUE, sig = 0.05, stand = TRUE, stars = "regress")
-
-p
-rm(p)
-## https://cran.r-project.org/web/packages/lavaanPlot/vignettes/Intro_to_lavaanPlot.html
 ```
+
+### RQ2, Outcome 2 - Visit frequency (more than weekly)
+
+```{r visit_freq_often, echo = FALSE, warning = FALSE}
+
+## Set reference levle of outcome
+mod_data$visit_freq_bin_often<-relevel(mod_data$visit_freq_bin_often, ref = "<=1 a week")
+
+for (i in 1:length(RQ2_preds)){
+  ## For each perceived green and natural space quality predictor fit an unadjusted model predicting visit frequency as a binary outcome
+  formula <- reformulate(RQ2_preds[i],response = "visit_freq_bin_often")
+  RQ2_unadj<-glm(formula, na.action = na.omit,
+                 data = mod_data, weights = rescaled_weights, family = "binomial")
+  assign(paste0("unadj_", RQ2_pred_names[i]), RQ2_unadj)
+  ## Generate summary table with custom function
+  RQ2_unadj_tbl<-bin_tbl_regression(RQ2_unadj)
+  assign(paste0("unadj_", RQ2_pred_names[i], "_tbl"),  RQ2_unadj_tbl)
+  rm(RQ2_unadj,  RQ2_unadj_tbl)
+  
+    ## For each perceived green and natural space quality predictor fit an adjusted model predicting visit frequency as a binary outcome
+  formula <- reformulate(c(RQ2_preds[i], "Region + Home_IMD_quint + Income + Gender +  Age_Band +  Ethnicity_cats +  Marital_cats +  car_cats+ Dog +  Gen_health_3cats  + Illnesses + Year +covid_restrictions + season"),response = "visit_freq_bin_often")
+  RQ2_adj<-glm(formula, na.action = na.omit,
+               data = mod_data, weights = rescaled_weights, contrasts = list(Region="contr.sum"), family = "binomial")
+  assign(paste0("adj_", RQ2_pred_names[i]), RQ2_adj)
+  ## Produce summary table with custom function
+  RQ2_adj_tbl<-bin_tbl_regression(RQ2_adj)
+  assign(paste0("adj_", RQ2_pred_names[i], "_tbl"),  RQ2_adj_tbl)
+  rm(RQ2_adj,  RQ2_adj_tbl)
+}
+
+rm(formula, i)
+
+## Merge all unadjusted and adjusted model tables
+t_merge<-tbl_merge(tbls = list(unadj_good_nature_tbl,adj_good_nature_tbl,unadj_qual_comp_tbl,adj_qual_comp_tbl,unadj_nature_sat_tbl,adj_nature_sat_tbl), tab_spanner = c("Unadj - Nature opps", "Adj - Nature opps", "Unadj - comp", "Adj - Comp" ,"Unadj - Sat", "Adj- Sat")) %>%
+modify_table_body(~.x %>% arrange(row_type="glance_statistic")) %>%
+  as_flex_table() 
+## print model summary table
+t_merge   
+
+rm(list =ls(pattern = "adj.*_tbl"))
+rm(list =ls(pattern = "unadj"))
+rm(t_merge)
+
+```
+
 
 ## Structural equation models
 ### By different land covers
@@ -1828,16 +1761,21 @@ tidy_fit_stand_flex
 rm(tidy_fit_stand_flex)
 
 
-fit_stats <- summary(fit, standardized = TRUE, fit.measures = TRUE)$fit
+fit_stats <- summary(fit, standardized = TRUE,rsquare = TRUE, fit.measures = TRUE)$fit
+
+
 wanted <- c("chisq", "df", "cfi", "tli", "ntotal", "rmsea")
 fit_stats_selected <- fit_stats[wanted]
 print("Fit measures for standardised SEM")
 fit_stats_selected
+print("Rsquare")
+lavInspect(fit, "rsquare")
+
 rm(fit_stats, wanted, fit_stats_selected)
 
 ### Prepare unstandardised results table, presented in main manuscript
 sum_sem<-summary(fit)
-ind<-which(sum_sem$pe$lhs=="h1vb1")
+ind<-which(sum_sem$pe$lhs=="acng_vb1")
 unstandard_indirect<-sum_sem$pe[ind:NROW(sum_sem$pe),] 
 unstandard_indirect[,6:9]<-round(unstandard_indirect[,6:9], digits = 3)
 write.csv(unstandard_indirect, "unstandardised_indirect_totals.csv")
@@ -1898,69 +1836,7 @@ rm(fit_stats, wanted, fit_stats_selected)
 
 ```
 
-```{r plot_sem, echo = FALSE, eval = FALSE}
-# Create the edges with labels dynamically
-edges <- glue("
-  tab3 -> tab2 [label = '{tidy_fit_stand[ind[3], 3]}']
-  tab4 -> tab2 [label = '{tidy_fit_stand[ind[4], 3]}']
-  tab5 -> tab2 [label = '{tidy_fit_stand[ind[5], 3]}']
-  tab6 -> tab2 [label = '{tidy_fit_stand[ind[6], 3]}']
-  tab7 -> tab2 [label = '{tidy_fit_stand[ind[7], 3]}']
-  
-  tab2 -> tab8 [label = '{tidy_fit_stand[ind[2], 9]}']
-  tab3 -> tab8 [label = '{tidy_fit_stand[ind[3], 9]}']
-  tab4 -> tab8 [label = '{tidy_fit_stand[ind[4], 9]}']
-  tab5 -> tab8 [label = '{tidy_fit_stand[ind[5], 9]}']
-  tab6 -> tab8 [label = '{tidy_fit_stand[ind[6], 9]}']
-  tab7 -> tab8 [label = '{tidy_fit_stand[ind[7], 9]}']
-  
-  tab2 -> tab1 [label = '{tidy_fit_stand[ind[2], 15]}']
-  tab3 -> tab1 [label = '{tidy_fit_stand[ind[3], 15]}']
-  tab4 -> tab1 [label = '{tidy_fit_stand[ind[4], 15]}']
-  tab5 -> tab1 [label = '{tidy_fit_stand[ind[5], 15]}']
-  tab6 -> tab1 [label = '{tidy_fit_stand[ind[6], 15]}']
-  tab7 -> tab1 [label = '{tidy_fit_stand[ind[7], 15]}']
-  tab8 -> tab1 [label = '{tidy_fit_stand[ind[8], 15]}']
-")
 
-#  nodesep = 1.0 // Increase horizontal spacing between nodes
-# Create the full graph string
-
-#ranksep = 0.05
-graph_string <- glue("
-digraph flowchart {{
-  rankdir = LR
-  node [fontname = Arial, shape = square, fontsize=11, width=1.15, height=0.75]
-
-  tab1 [label = 'Well-being']
-  tab2 [label = 'Green space\\nquality']
-  tab3 [label = 'Grassland']
-  tab4 [label = 'Arable']
-  tab5 [label = 'Woodland']
-  tab6 [label = 'Built-up']
-  tab7 [label = 'Improved\ngrassland']
-  tab8 [label = 'Visit\\nfrequency']
-  
-  {edges}
-  
-  {{ rank = same; tab1; tab8 }}
-  
-  {{ rank = same; tab3; tab4; tab5; tab6;  tab7}}
-}}
-")
-
-# Render the graph
-plot_paths <- grViz(graph_string, width = 800, height = 800)
-
-plot_paths
-setwd(Figures_wd)
-
-grViz(graph_string) %>%
-    export_svg %>% charToRaw %>% rsvg_png("SEM_paths_stand.png",  width = 1000, height = 800)
-
-
-## https://cran.r-project.org/web/packages/lavaanPlot/vignettes/Intro_to_lavaanPlot.html
-```
 
 
 ## SEM - Number of land covers
@@ -2119,25 +1995,17 @@ setwd(Results_wd)
 write.csv(tidy_fit, "tidy_sem_results_unstandardised.csv")
 rm(tidy_fit, tidy_fit_flex)
 
-#summary(fit, standardized=TRUE, fit.measures=TRUE)
-#fitMeasures(fit, standardized=TRUE)
-#modindices(fit,sort=TRUE)
 
-## plot standardised results
-## This plot is too complicated though as it includes all variables
-## I did it manually in the paper
-#p<-lavaanPlot(fit, coefs = TRUE, sig = 0.05, stand = TRUE, stars = "regress", graph_options = list(rankdir = "LR"))
-
-#p<-lavaanPlot2(fit, graph_options 
-#p
-#rm(p)
+fit_stats <- summary(fit,fit.measures = TRUE)$fit
+wanted <- c("chisq", "df", "cfi", "tli", "ntotal", "rmsea")
+fit_stats_selected <- fit_stats[wanted]
+print("Fit measures for unstandardised SEM")
+fit_stats_selected
+rm(fit_stats, wanted, fit_stats_selected)
+print("Rsquare")
+lavInspect(fit, "rsquare")
 
 
-#key_vars <- c("Wellbeing_sat_num", "M1_Q5_comp","ACNG_cats_num", "AH_cats_num",
- #             "BMYW_cats_num", "BUAG_cats_num", "IG_cats_num",
-  #            "visit_freq_bin_num")
-
-#ind <- match(key_vars, tidy_fit_stand$rhs)
 
 ```
 <!---BLOCK_LANDSCAPE_STOP--->
