@@ -1082,7 +1082,7 @@ mod_data$Year <- factor( mod_data$Year, ordered = FALSE )
 ```{r sample_descriptives, echo = FALSE}
 ## Manuscript Table 1
 # Categorical variable names
-var_names<-c("M1_Q5_g","Nature_opp_met", "visit_freq_bin","Home_IMD_quint","Income", "Region","ACNG_A_pred_ptc_wtd_percent_cats","BMYW_A_pred_ptc_wtd_percent_cats","BUAG_A_pred_ptc_wtd_percent_cats", "IG_A_pred_ptc_wtd_percent_cats","AH_A_pred_ptc_wtd_percent_cats","Age_Band", "Gender", "Ethnicity_cats", "Marital_cats", "Work_Status2", "car_cats", "Dog","Illnesses", "Gen_health_3cats",  "season","covid_restrictions", "Year")
+var_names<-c("M1_Q5_g","Nature_opp_met", "visit_freq_bin","Home_IMD_quint","Income", "Region","ACNG_A_pred_ptc_wtd_percent_cats","BMYW_A_pred_ptc_wtd_percent_cats","BUAG_A_pred_ptc_wtd_percent_cats", "IG_A_pred_ptc_wtd_percent_cats","AH_A_pred_ptc_wtd_percent_cats","Age_Band", "Gender", "Ethnicity_cats", "Marital_cats", "Work_Status2", "car_cats", "Dog","Illnesses", "Gen_health_3cats",  "season","covid_restrictions", "Year", "visit_freq_bin_month", "visit_freq_bin_often")
 
 col_nums_2<-match(var_names, names(mod_data))
 
