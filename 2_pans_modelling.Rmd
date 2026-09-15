@@ -2280,4 +2280,273 @@ rm(fit_stats, wanted, fit_stats_selected)
 
 
 ```
+
+### By different land covers and visiting more-than-weekly
+```{r sem_green_comp_visiting_often, echo = FALSE}
+
+## convert variables to ordered factors so they can be easily converted to numeric
+
+mod_data$visit_freq_bin_ord_often<-ordered(mod_data$visit_freq_bin_often)
+mod_data$visit_freq_bin_often_num<-as.numeric(mod_data$visit_freq_bin_ord_often)-1
+
+
+## Specify model
+model_spec <- ' 
+# direct effect
+             Wellbeing_sat_num ~1+ b2*M1_Q5_comp + b1*visit_freq_bin_often_num + 
+  acng_c*ACNG_cats_num + ah_c*AH_cats_num + bmyw_c*BMYW_cats_num + buag_c*BUAG_cats_num + ig_c*IG_cats_num +
+    imd_c*Home_IMD_quint_num + inc_c*income_num +
+  east_c*East +em_c*East_Midlands + london_c*London + ne_c*North_East +nw_c*North_West + sw_c*South_West + wm_c*West_Midlands +yh_c*Yorkshire_and_the_Humber +
+ Gender_2levs + a16_24 + a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+             
+           # mediators
+  
+            M1_Q5_comp ~1+ 
+              acng_q*ACNG_cats_num +  ah_q*AH_cats_num +  bmyw_q*BMYW_cats_num + buag_q*BUAG_cats_num +ig_q*IG_cats_num +
+                imd_q*Home_IMD_quint_num + inc_q*income_num +
+                east_q*East + em_q*East_Midlands + london_q*London + ne_q*North_East + nw_q*North_West + sw_q*South_West +  wm_q*West_Midlands + yh_q*Yorkshire_and_the_Humber +
+ + Gender_2levs +  a16_24 + a25_39 + a55_64 + a65+ Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023  + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+            
+             visit_freq_bin_often_num ~ 1+ d*M1_Q5_comp + acng_v*ACNG_cats_num + ah_v*AH_cats_num + bmyw_v*BMYW_cats_num + buag_v*BUAG_cats_num + ig_v*IG_cats_num +
+               imd_v*Home_IMD_quint_num + inc_v*income_num + 
+               east_v*East + em_v*East_Midlands + london_v*London + ne_v*North_East + nw_v*North_West + sw_v*South_West + wm_v*West_Midlands + yh_v*Yorkshire_and_the_Humber + Gender_2levs  +  a16_24 + a25_39 + a55_64 + a65 + Ethnicity_cats + Marital_cats + car_cats + Dog + Gen_health_3cats_num + Illnesses + Y2021 + Y2022 + Y2023 + Minimal_restrictions + Outdoor_recreation_limited + First_full_lockdown + Spring + Summer + Autumn
+
+            
+           # indirect effects (a*b)
+           
+             acng_vb1 := acng_v*b1
+             ah_vb1 := ah_v*b1
+             bmyw_vb1 := bmyw_v*b1
+             buag_vb1 := buag_v*b1
+             ig_vb1 := ig_v*b1
+             imd_vb1 := imd_v*b1
+             inc_vb1 := inc_v*b1
+             east_vb1 := east_v*b1
+             em_vb1 := em_v*b1
+             london_vb1 := london_v*b1
+             ne_vb1 := ne_v*b1
+             nw_vb1 := nw_v*b1
+             sw_vb1 := sw_v*b1
+             wm_vb1 := wm_v*b1
+             yh_vb1 := yh_v*b1
+             
+            acng_qb2 := acng_q*b2
+             ah_qb2 := ah_q*b2
+             bmyw_qb2 := bmyw_q*b2
+             buag_qb2 := buag_q*b2
+             ig_qb2 := ig_q*b2
+              imd_qb2 := imd_q*b2
+             inc_qb2 := inc_q*b2
+             east_qb2 := east_q*b2
+             em_qb2 := em_q*b2
+             london_qb2 := london_q*b2
+             ne_qb2 := ne_q*b2
+             nw_qb2 := nw_q*b2
+             sw_qb2 := sw_q*b2
+             wm_qb2 := wm_q*b2
+             yh_qb2 := yh_q*b2
+             
+             acng_qdb1 := acng_q*d*b1
+             ah_qdb1 := ah_q*d*b1
+             bmyw_qdb1 := bmyw_q*d*b1
+             buag_qdb1 := buag_q*d*b1
+             ig_qdb1 := ig_q*d*b1
+             imd_qdb1 := imd_q*d*b1
+             inc_qdb1 := inc_q*d*b1
+             east_qdb1 := east_q*d*b1
+             em_qdb1 := em_q*d*b1
+             london_qdb1 := london_q*d*b1
+             ne_qdb1 := ne_q*d*b1
+             nw_qdb1 := nw_q*d*b1
+             sw_qdb1 := sw_q*d*b1
+             wm_qdb1 := wm_q*d*b1
+             yh_qdb1 := yh_q*d*b1
+             
+             ## All indirect
+             ttl_indirect_acng := (acng_v*b1) + (acng_q*b2) + (acng_q*d*b1)
+             ttl_indirect_ah := (ah_v*b1) + (ah_q*b2) + (ah_q*d*b1)
+             ttl_indirect_bmyw := (bmyw_v*b1) + (bmyw_q*b2) + (bmyw_q*d*b1)
+             ttl_indirect_buag := (buag_v*b1) + (buag_q*b2) + (buag_q*d*b1)
+             ttl_indirect_ig:= (ig_v*b1) + (ig_q*b2) + (ig_q*d*b1)
+             
+              ttl_indirect_imd := (imd_v*b1) + (imd_q*b2) + (imd_q*d*b1)
+             ttl_indirect_inc := (inc_v*b1) + (inc_q*b2) + (inc_q*d*b1)
+             ttl_indirect_east := (east_v*b1) + (east_q*b2) + (east_q*d*b1)
+            ttl_indirect_em := (em_v*b1) + (em_q*b2) + (em_q*d*b1)
+             ttl_indirect_london := (london_v*b1) + (london_q*b2) + (london_q*d*b1)
+             ttl_indirect_ne := (ne_v*b1) + (ne_q*b2) + (ne_q*d*b1)
+             ttl_indirect_nw := (nw_v*b1) + (nw_q*b2) + (nw_q*d*b1)
+             ttl_indirect_sw := (sw_v*b1) + (sw_q*b2) + (sw_q*d*b1)
+             ttl_indirect_wm :=  (wm_v*b1) + (wm_q*b2) + (wm_q*d*b1)
+             ttl_indirect_yh := (yh_v*b1) + (yh_q*b2) + (yh_q*d*b1)
+             
+           # total effects
+             totalacng := (acng_v*b1) + (acng_q*b2) + (acng_q*d*b1) + acng_c
+             totalah := (ah_v*b1) + (ah_q*b2) + (ah_q*d*b1) + ah_c
+             totalbmyw := (bmyw_q*b1) + (bmyw_q*b2) + (bmyw_q*d*b1) + bmyw_c
+             totalbuag := (buag_v*b1) + (buag_q*b2) + (buag_q*d*b1) + buag_c
+             totalig := (ig_v*b1) + (ig_q*b2) + (ig_q*d*b1) + ig_c
+             ttl_imd := (imd_v*b1) + (imd_q*b2) + (imd_q*d*b1) + imd_c
+             ttl_inc := (inc_v*b1) + (inc_q*b2) + (inc_q*d*b1) + inc_c
+             ttl_east := (east_v*b1) + (east_q*b2) + (east_q*d*b1) + east_c
+            ttl_em := (em_v*b1) + (em_q*b2) + (em_q*d*b1)+ em_c
+             ttl_london := (london_v*b1) + (london_q*b2) + (london_q*d*b1) + london_c
+             ttl_ne := (ne_v*b1) + (ne_q*b2) + (ne_q*d*b1) + ne_c
+             ttl_nw := (nw_v*b1) + (nw_q*b2) + (nw_q*d*b1) + nw_c
+             ttl_sw := (sw_v*b1) + (sw_q*b2) + (sw_q*d*b1) + sw_c
+             ttl_wm :=  (wm_v*b1) + (wm_q*b2) + (wm_q*d*b1) + wm_c
+             ttl_yh := (yh_v*b1) + (yh_q*b2) + (yh_q*d*b1) + yh_c
+         '
+
+## Fit SEM
+fit <- sem(model_spec, data = mod_data,sampling.weights  = "rescaled_weights")
+
+setwd(Results_wd)
+## Create standardised coefficients table
+## Presented in supp mats
+tidy_fit_stand<-standardizedSolution(fit)
+
+ind<-which(tidy_fit_stand$op== ":=")
+pathways<-tidy_fit_stand[ind,] 
+
+col_ind<-grep("pvalue", names(pathways))
+pathways$est_stars<-round(pathways$est.std, digits =3)
+## Add stars to indicate significance
+stars_ind<-grep("stars", names(pathways))
+stars_names<-names(pathways)[stars_ind]
+for (i in 1:length(col_ind)){
+  ind<-which(pathways[col_ind[i]]<0.001)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind], "***")
+  ind<-which(pathways[col_ind[i]]<0.01 & pathways[col_ind[i]]>=0.001)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind],"**")
+  ind<-which(pathways[col_ind[i]]<0.05 & pathways[col_ind[i]]>=0.01)
+  pathways[[stars_names[i]]][ind]<-paste0( pathways[[stars_names[i]]][ind], "*")
+}
+
+rm(ind, i, stars_names, stars_ind)
+
+pathways<- pathways %>%
+  mutate(conf_int=paste0(round(ci.lower, digits = 3), ",",round(ci.upper, digits = 3))) %>%
+  select(rhs,est_stars, conf_int)
+
+setwd(Results_wd)
+write.csv(pathways, "tidy_sem_pathways_standardised_more_than_weekly.csv")
+pathways_flex<-flextable(pathways)
+print("Standardised pathways - different land covers")
+pathways_flex
+rm(pathways, pathways_flex)
+
+## There are hundreds of rows, so only included key rows
+ind<-grep("M1_Q5_comp|visit_freq_bin_often_num|Wellbeing_sat_num", tidy_fit_stand$lhs)
+tidy_fit_stand<-tidy_fit_stand[ind,]
+rm(ind)
+tidy_fit_stand<-pivot_wider(tidy_fit_stand,id_cols = rhs, names_from = lhs, values_from = c( est.std,se, pvalue, ci.lower, ci.upper))
+
+## Select relevant columns
+cols_green<-grep("M1_Q5_comp", names(tidy_fit_stand))
+cols_sat<-grep("Wellbeing", names(tidy_fit_stand))
+cols_visit<-grep("visit", names(tidy_fit_stand))
+tidy_fit_stand<-tidy_fit_stand[, c(1, cols_green, cols_visit, cols_sat)]
+rm(cols_green, cols_visit, cols_sat)
+
+tidy_fit_stand[,2:NCOL(tidy_fit_stand)]<-round(tidy_fit_stand[,2:NCOL(tidy_fit_stand)], digits =3)
+
+col_ind<-grep("pvalue", names(tidy_fit_stand))
+tidy_fit_stand$est.stars_Green_space_quality<-round(tidy_fit_stand$est.std_M1_Q5_comp, digits =2)
+tidy_fit_stand$est.stars_visit_freq_bin_often_num<-round(tidy_fit_stand$est.std_visit_freq_bin_often_num, digits =2)
+tidy_fit_stand$est.stars_Wellbeing_sat_num<-round(tidy_fit_stand$est.std_Wellbeing_sat_num, digits =2)
+## Add stars to indicate significance
+stars_ind<-grep("stars", names(tidy_fit_stand))
+stars_names<-names(tidy_fit_stand)[stars_ind]
+for (i in 1:length(col_ind)){
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.001)
+  tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "***")
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.01 & tidy_fit_stand[col_ind[i]]>=0.001)
+   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind],"**")
+  ind<-which(tidy_fit_stand[col_ind[i]]<0.05 & tidy_fit_stand[col_ind[i]]>=0.01)
+   tidy_fit_stand[[stars_names[i]]][ind]<-paste0( tidy_fit_stand[[stars_names[i]]][ind], "*")
+}
+
+rm(i, col_ind, stars_ind, stars_names)
+tidy_fit_stand<-tidy_fit_stand[,c(1:2, 17, 3:7, 18, 8:12, 19, 13:16)]
+
+write.csv(tidy_fit_stand, "tidy_sem_results_standardised_visit_freq_bin_often_num.csv")
+
+tidy_fit_stand_flex<-flextable(tidy_fit_stand)
+# print standardised SEM model results table
+print("standardised SEM model results table")
+tidy_fit_stand_flex
+
+rm(tidy_fit_stand_flex)
+
+fit_stats <- summary(fit, standardized = TRUE,rsquare = TRUE, fit.measures = TRUE)$fit
+
+wanted <- c("chisq", "df", "cfi", "tli", "ntotal", "rmsea")
+fit_stats_selected <- fit_stats[wanted]
+print("Fit measures for standardised SEM")
+fit_stats_selected
+print("Rsquare")
+lavInspect(fit, "rsquare")
+
+rm(fit_stats, wanted, fit_stats_selected)
+
+### Prepare unstandardised results table, presented in main manuscript
+sum_sem<-summary(fit)
+ind<-which(sum_sem$pe$lhs=="acng_vb1")
+unstandard_indirect<-sum_sem$pe[ind:NROW(sum_sem$pe),] 
+unstandard_indirect[,6:9]<-round(unstandard_indirect[,6:9], digits = 3)
+write.csv(unstandard_indirect, "unstandardised_indirect_totals_visit_freq_bin_often_num.csv")
+rm(sum_sem, ind, unstandard_indirect)
+
+tidy_fit<-tidySEM::table_results(fit , digits = 3)
+ind<-grep("M1_Q5_comp|visit_freq_bin_often_num|Wellbeing_sat_num", tidy_fit$label)
+tidy_fit<-tidy_fit[ind,]
+rm(ind)
+ind<-grep("Variances|Means", tidy_fit$label)
+tidy_fit<-tidy_fit[-ind,]
+rm(ind)
+
+tidy_fit$Predictor<-NA
+tidy_fit$Outcome<-NA
+for (i in 1:NROW(tidy_fit)){
+  end_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[1]]
+  tidy_fit$Outcome[i]<-substr(tidy_fit$label[i], 1, end_char-1)
+  rm(end_char)
+  start_char<-unlist(gregexpr(pattern ='\\.',tidy_fit$label[i]))[[2]]
+  tidy_fit$Predictor[i]<-substr(tidy_fit$label[i], start_char+1, nchar(tidy_fit$label[i]))
+  rm(start_char)
+}
+tidy_fit$label<-NULL
+
+class(tidy_fit$Outcome)
+tidy_fit$Outcome<-gsub("M1_Q5_comp", "Green_qual_comp", tidy_fit$Outcome)
+
+tidy_fit<-pivot_wider(tidy_fit,id_cols = Predictor, names_from = Outcome, values_from = c( est_sig,se, pval,confint))
+
+cols_green<-grep("Green", names(tidy_fit))
+cols_sat<-grep("Wellbeing", names(tidy_fit))
+cols_visit<-grep("visit", names(tidy_fit))
+tidy_fit<-tidy_fit[, c(1, cols_green, cols_visit, cols_sat)]
+rm(cols_green, cols_visit, cols_sat)
+
+tidy_fit_flex<-flextable(tidy_fit) %>%
+  colformat_num(j = c( "pval_Green_qual_comp", "pval_visit_freq_bin_often_num",   "pval_Wellbeing_sat_num"  ), digits = 3)
+## print table
+print("Understandardised SEM results table by land covers")
+tidy_fit_flex
+
+## save table
+setwd(Results_wd)
+write.csv(tidy_fit, "tidy_sem_results_unstandardised_visit_freq_bin_often_num.csv")
+rm(tidy_fit, tidy_fit_flex)
+
+fit_stats <- summary(fit,fit.measures = TRUE)$fit
+wanted <- c("chisq", "df", "cfi", "tli", "ntotal", "rmsea")
+fit_stats_selected <- fit_stats[wanted]
+print("Fit measures for unstandardised SEM")
+fit_stats_selected
+rm(fit_stats, wanted, fit_stats_selected)
+
+
+```
 <!---BLOCK_LANDSCAPE_STOP--->
