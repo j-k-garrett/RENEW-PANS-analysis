@@ -12,38 +12,25 @@ always_allow_html: true
 library(officedown)
 library(broom)
 library(broom.helpers)
-#library(car)
 library(cowplot)
-#library(DiagrammeR)
-
-#library(DiagrammeRsvg)
 library(dplyr)
 library(fastDummies)
 library(flextable)
 library(forcats)
 library(ggplot2)
 library(ggeffects)
-#library(glue)
-
 library(gtsummary)
-
 library(lavaan)
-
-#library(lavaanPlot)
 library(lmtest)
 library(RColorBrewer)
-#library(rmarkdown)
 library(rsq)
-#library(rsvg)
-
-#library(survey)
 library(tibble)
 library(tidyr)
 library(tidySEM)
 library(VGAM)
 
 library(fs, lib.loc = "E:\\Projects\\Users\\JoGarrett\\R_packages")
-#library(lavaan.survey)
+
 ```
 
 
@@ -1123,7 +1110,7 @@ terms<-attr(adj_vglm@terms$terms, "term.labels")
 
 
 predictor_names<-c("Region", "Home_IMD_quint", 
-                   "Income", "ACNG_4cats",
+                   "Income", "ACNG_A_pred_ptc_wtd_percent_cats",
                    "AH_A_pred_ptc_wtd_percent_cats", 
                    "BMYW_A_pred_ptc_wtd_percent_cats",
                    "BUAG_A_pred_ptc_wtd_percent_cats",
