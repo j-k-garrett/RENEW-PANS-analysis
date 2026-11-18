@@ -562,7 +562,6 @@ rm(list = ls(pattern = "unadj_glm"))
 rm(list = ls(pattern = "adj_glm"))
 
 
-##up to here, all checked, running knit
 ```
 
 
@@ -571,37 +570,71 @@ rm(list = ls(pattern = "adj_glm"))
 
 ```{r func_print_models, echo = FALSE}
 ## Create custom functions for presenting cumulative link model results
-
 tidy_vglm<-function(model_object){
   model_summary<-summary(model_object)
-  tidy_coefs<-data.frame("Odds"=exp(coef(model_object)),exp(confint(model_object)),"pvalue"=model_summary@coef3[,4]) %>%
-    mutate(odds_rounded=round(Odds, digits =2)) %>%
-    mutate(odds_stars=as.character(odds_rounded))
   
+  tidy_coefs<-data.frame("Coef"=coef(model_object),confint(model_object),"pvalue"=model_summary@coef3[,4]) %>%
+    mutate(coefs_rounded=round(Coef, digits =2)) %>%
+    mutate(coefs_stars=as.character(coefs_rounded))
+    
   ind<-which(tidy_coefs$pvalue<0.05)
-  tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "*")
-  ind<-which(tidy_coefs$pvalue<0.01)
-  tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "**")
+  tidy_coefs$coefs_stars[ind]<-paste0(tidy_coefs$coefs_rounded[ind], "*")
+ ind<-which(tidy_coefs$pvalue<0.01)
+  tidy_coefs$coefs_stars[ind]<-paste0(tidy_coefs$coefs_rounded[ind], "**")
   ind<-which(tidy_coefs$pvalue<0.001)
-  tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "***")
-  tidy_coefs$odds_rounded<-NULL
-  tidy_coefs$ci<-paste0("(",round(tidy_coefs$X2.5.., digits =2), ", ", round(tidy_coefs$X97.5.., digits=2),")")
-  tidy_coefs$full_results<-paste(tidy_coefs$odds_stars,tidy_coefs$ci, sep = " ")
-  tidy_coefs$terms<-rownames(tidy_coefs)
+  tidy_coefs$coefs_stars[ind]<-paste0(tidy_coefs$coefs_rounded[ind], "***")
+  tidy_coefs$coefs_rounded<-NULL
+   tidy_coefs$ci<-paste0("(",round(tidy_coefs$X2.5.., digits =2), ", ", round(tidy_coefs$X97.5.., digits=2),")")
+  tidy_coefs$full_results<-paste(tidy_coefs$coefs_stars,tidy_coefs$ci, sep = " ")
+   tidy_coefs$terms<-rownames(tidy_coefs)
   tidy_coefs<-data.frame(tidy_coefs$terms, tidy_coefs$full_results)
   names(tidy_coefs)<-gsub("tidy_coefs\\.","",names(tidy_coefs))
   ind<- gregexpr(":", tidy_coefs$terms) %>%
        unlist()
-  tidy_coefs$interval <-substr(tidy_coefs$terms, ind+1,nchar(tidy_coefs$terms))
+   tidy_coefs$interval <-substr(tidy_coefs$terms, ind+1,nchar(tidy_coefs$terms))
   tidy_coefs$variable<-substr(tidy_coefs$terms,1, ind-1)
   ind<-which(nchar(tidy_coefs$interval)>1)
    tidy_coefs$variable[ind]<-tidy_coefs$interval[ind]
    tidy_coefs$interval[ind]<-"Parallel"
   rm(ind)
    tidy_coefs$terms<-NULL
-  tidy_coefs<-pivot_wider(tidy_coefs, names_from = interval, values_from = 'full_results')
+     tidy_coefs<-pivot_wider(tidy_coefs, names_from = interval, values_from = 'full_results')
   return(tidy_coefs)
 }
+
+
+######
+#tidy_vglm<-function(model_object){
+ # model_summary<-summary(model_object)
+  # tidy_coefs<-data.frame("Odds"=exp(coef(model_object)),exp(confint(model_object)),"pvalue"=model_summary@coef3[,4])
+  #tidy_coefs<-data.frame("Coef"=coef(model_object),confint(model_object),"pvalue"=model_summary@coef3[,4]) %>%
+ #   mutate(odds_rounded=round(Odds, digits =2)) %>%
+ #   mutate(odds_stars=as.character(odds_rounded))
+  
+#  ind<-which(tidy_coefs$pvalue<0.05)
+#  tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "*")
+#  ind<-which(tidy_coefs$pvalue<0.01)
+#  tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "**")
+ # ind<-which(tidy_coefs$pvalue<0.001)
+ # tidy_coefs$odds_stars[ind]<-paste0(tidy_coefs$odds_rounded[ind], "***")
+ # tidy_coefs$odds_rounded<-NULL
+ # tidy_coefs$ci<-paste0("(",round(tidy_coefs$X2.5.., digits =2), ", ", round(tidy_coefs$X97.5.., digits=2),")")
+ # tidy_coefs$full_results<-paste(tidy_coefs$odds_stars,tidy_coefs$ci, sep = " ")
+ # tidy_coefs$terms<-rownames(tidy_coefs)
+ # tidy_coefs<-data.frame(tidy_coefs$terms, tidy_coefs$full_results)
+ # names(tidy_coefs)<-gsub("tidy_coefs\\.","",names(tidy_coefs))
+#  ind<- gregexpr(":", tidy_coefs$terms) %>%
+  #     unlist()
+#  tidy_coefs$interval <-substr(tidy_coefs$terms, ind+1,nchar(tidy_coefs$terms))
+#  tidy_coefs$variable<-substr(tidy_coefs$terms,1, ind-1)
+ # ind<-which(nchar(tidy_coefs$interval)>1)
+ #  tidy_coefs$variable[ind]<-tidy_coefs$interval[ind]
+ #  tidy_coefs$interval[ind]<-"Parallel"
+#  rm(ind)
+ #  tidy_coefs$terms<-NULL
+ # tidy_coefs<-pivot_wider(tidy_coefs, names_from = interval, values_from = 'full_results')
+ # return(tidy_coefs)
+#}
 
 ## Create custom function for calculating R squared for cumulative link models
 vglm_rsq<-function(model_object, null_model){
@@ -614,16 +647,14 @@ vglm_rsq<-function(model_object, null_model){
 adding_model_info<-function(variable, model_object, null_model_object, tidy_model_object){
   X1<-c(round(AIC(model_object), digits = 2),
         signif(vglm_rsq(model_object, null_model_object), digits = 3))
-  if ( NCOL(tidy_model_object)==5){
+  if ( NCOL(tidy_model_object)==4){
     to_add<-data.frame(variable,X1, "2" = rep(NA,2),
-                     "3" = rep(NA,2),
-                     "4" = rep(NA,2))
-  } else if (NCOL(tidy_model_object)==6){
-    to_add<-data.frame(variable,X1,"1"= rep(NA,2), "2" = rep(NA,2),
-                     "3" = rep(NA,2),
-                     "4" = rep(NA,2))
-  }
-  
+                     "3" = rep(NA,2))
+  } #else if (NCOL(tidy_model_object)==6){
+    #to_add<-data.frame(variable,X1,"1"= rep(NA,2), "2" = rep(NA,2),
+     #                "3" = rep(NA,2),
+      #               "4" = rep(NA,2))
+  #}
   rm(X1)
   names(to_add)<-names(tidy_model_object)
   tidy_model_with_stats<-rbind(tidy_model_object, to_add)
@@ -641,7 +672,11 @@ adding_model_info<-function(variable, model_object, null_model_object, tidy_mode
 #levels(mod_data$Region)
 
 ## Region unadjusted model
-vglm_unadj_region<- vglm(local_good_nature_ord ~ Region,
+mod_data$local_good_nature_ord_4cats<-fct_recode(mod_data$local_good_nature_ord, "(Strongly) disagree"="Strongly disagree",
+"(Strongly) disagree"="Disagree")
+
+
+vglm_unadj_region<- vglm(local_good_nature_ord_4cats ~ Region,
                          family= VGAM::cumulative(link = "probitlink", parallel = FALSE, reverse = TRUE),
   data = mod_data,
               weights = mod_data$rescaled_weights, 
@@ -649,11 +684,11 @@ vglm_unadj_region<- vglm(local_good_nature_ord ~ Region,
 tidy_vglm_unadj_region<-tidy_vglm(vglm_unadj_region)
 tidy_vglm_unadj_region$variable[2:9]<-levels(mod_data$Region)[1:8]
 
-vglm_unadj_IMD<- vglm(local_good_nature_ord ~Home_IMD_quint, family = cumulative(parallel = FALSE,link ="probitlink", reverse = TRUE), na.action = na.omit,
+vglm_unadj_IMD<- vglm(local_good_nature_ord_4cats~Home_IMD_quint, family = cumulative(parallel = FALSE,link ="probitlink", reverse = TRUE), na.action = na.omit,
               data = mod_data, weights = rescaled_weights)
 tidy_vglm_unadj_IMD<-tidy_vglm(vglm_unadj_IMD)
 
-vglm_unadj_inc<- vglm(local_good_nature_ord ~Income, family = cumulative(parallel = FALSE,link ="probitlink", reverse = TRUE), na.action = na.omit,
+vglm_unadj_inc<- vglm(local_good_nature_ord_4cats~Income, family = cumulative(parallel = FALSE,link ="probitlink", reverse = TRUE), na.action = na.omit,
               data = mod_data, weights = rescaled_weights)
 tidy_vglm_unadj_inc<-tidy_vglm(vglm_unadj_inc)
 
@@ -663,7 +698,7 @@ short_lsoas_habs<-c("ACNG", "AH", "BMYW", "BUAG","IG","num")
 
 ## Carry out undjusted vglms for all land cover categories
 for (i in 1:length(pcs_habs_cats)){
-   formula <- reformulate(pcs_habs_cats[i],response = "local_good_nature_ord")
+   formula <- reformulate(pcs_habs_cats[i],response = "local_good_nature_ord_4cats")
    vglm_obj<-vglm(formula, family = cumulative(parallel = FALSE,link = "probitlink", reverse = TRUE), na.action = na.omit,
               data = mod_data, weights = rescaled_weights)
    assign(paste0("vglm_unadj_", short_lsoas_habs[i], "_pcs_cats"),   vglm_obj)
@@ -679,7 +714,9 @@ rm(i)
 ```{r adj_model_vglm,echo = FALSE, warning = FALSE, fig.width = 5, fig.height = 3}
 
 ## Adjusted model with region, IMD, household income, land cover categories and all covariates
-adj_vglm<-vglm(local_good_nature_ord ~ Region +Home_IMD_quint + Income  +ACNG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats +BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year + season + covid_restrictions, family = cumulative(link = "probitlink", parallel =FALSE,reverse = TRUE), data =mod_data, weights = rescaled_weights, contrasts = list(Region = "contr.sum"))
+
+
+adj_vglm<-vglm(local_good_nature_ord_4cats ~ Region +Home_IMD_quint + Income  + ACNG_A_pred_ptc_wtd_percent_cats + AH_A_pred_ptc_wtd_percent_cats +BMYW_A_pred_ptc_wtd_percent_cats + BUAG_A_pred_ptc_wtd_percent_cats + IG_A_pred_ptc_wtd_percent_cats + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats+ Dog + Gen_health_3cats  + Illnesses + Year + season + covid_restrictions, family = cumulative(link = "probitlink", parallel = FALSE,reverse = TRUE), data =mod_data, weights = rescaled_weights,contrasts = list(Region = "contr.sum"))
 
 tidy_adj_vglm<-tidy_vglm(adj_vglm)
 tidy_adj_vglm$variable[2:9]<-levels(mod_data$Region)[1:8]
@@ -695,9 +732,8 @@ for (i in 1:length(list_tidy_unadj)){
 
 rm(list_tidy_unadj, obj, i)
 
-
 ## Carry out null model for later model fit statistics
-null<- vglm(local_good_nature_ord ~1 ,
+null<- vglm(local_good_nature_ord_4cats ~1 ,
                          family= VGAM::cumulative(link = "probitlink", parallel = FALSE, reverse = TRUE),
   data = mod_data,
               weights = mod_data$rescaled_weights, 
@@ -762,10 +798,12 @@ write.csv(all_results, "RQ1_nearby_nature_opps_vglm_results.csv")
 ```{r num_habs_rq1, echo = FALSE}
 
 ## Unadjusted land cover diversity vglm
-unadj_vglm_num_habs<-vglm(local_good_nature_ord ~ num_habs_wtd, family = cumulative(link = "probitlink", parallel =FALSE,reverse = TRUE), data = mod_data, weights = rescaled_weights)
+unadj_vglm_num_habs<-vglm(local_good_nature_ord_4cats ~ num_habs_wtd, family = cumulative(link = "probitlink", parallel =FALSE,reverse = TRUE), data = mod_data, weights = rescaled_weights)
 
-## Adjuseted land cover diversity vglm
-adj_vglm_num_habs<-vglm(local_good_nature_ord ~ Region +Home_IMD_quint + Income  +  num_habs_wtd + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats + Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions + season, family = cumulative(link = "probitlink", parallel =FALSE,reverse = TRUE), data = mod_data, weights = rescaled_weights, contrasts = list(Region = "contr.sum"))
+## Adjusted land cover diversity vglm
+
+adj_vglm_num_habs<-vglm(local_good_nature_ord_4cats ~ Region +Home_IMD_quint + Income  +  num_habs_wtd + Gender +  Age_Band +  Ethnicity_cats + Marital_cats +  car_cats + Dog + Gen_health_3cats  + Illnesses + Year +covid_restrictions + season, family = cumulative(link = "probitlink",parallel =FALSE,reverse = TRUE), data = mod_data, weights = rescaled_weights, contrasts = list(Region = "contr.sum"))
+
 
 
 ## Tidy model results
@@ -860,10 +898,10 @@ predict_for_plots<-function(new_data_df,predictor_name,  model_object, outcome_d
   upr = fam_inv(fit_link + (2 * se_fit))
   lwr = fam_inv(fit_link - (2 * se_fit))
   upr_df<-data.frame(upr, "Variable"=new_data_df[[predictor_name]])
-  names(upr_df)[1:5]<-levels(outcome_data)
+  names(upr_df)[1:4]<-levels(outcome_data)
   
   lwr_df<-data.frame(lwr, "Variable"=new_data_df[[predictor_name]])
-  names(lwr_df)[1:5]<-levels(outcome_data)
+  names(lwr_df)[1:4]<-levels(outcome_data)
   rm(fam_inv, fit_link, se_fit, upr, lwr)
   predictions_vglm$Variable<-new_data_df[[predictor_name]]
   #predictions_vglm$Variable<-new_data_df$Region
@@ -887,7 +925,7 @@ predict_for_plots<-function(new_data_df,predictor_name,  model_object, outcome_d
     as.data.frame()
   coefs_model$term<-rownames(coefs_model)
   predictions_vglm$Significance<-"Not significant"
-  ind<-which(predictions_vglm$Response=="Strongly disagree")
+  ind<-which(predictions_vglm$Response=="(Strongly) disagree")
   predictions_vglm$Significance[ind]<-"Reference"
   rm(ind)
   ind<-gregexpr(pattern =':',coefs_model$term) %>%
@@ -895,8 +933,8 @@ predict_for_plots<-function(new_data_df,predictor_name,  model_object, outcome_d
   end_ind<-nchar(coefs_model$term)
   coefs_model$Response<-substr(coefs_model$term, ind+1, end_ind) %>%
     as.factor() %>%
-    fct_recode("Disagree" = "1", "Neither agree nor disagree"= "2",
-               "Agree" = "3", "Strongly agree"= "4")
+    fct_recode("Neither agree nor disagree"= "1",
+               "Agree" = "2", "Strongly agree"= "3")
   rm(ind, end_ind)  
   ind<-grep(predictor_name, coefs_model$term)
   coefs_model<-coefs_model[ind,]
@@ -907,8 +945,8 @@ predict_for_plots<-function(new_data_df,predictor_name,  model_object, outcome_d
     } else {
       i = 1:length(levels(mod_data[[predictor_name]])[2:length(levels(mod_data[[predictor_name]]))])
     }
-    start_ind<-4*i-3
-    end_ind<-start_ind+3
+    start_ind<-3*i-2
+    end_ind<-start_ind+2
     rm(i)
     if (predictor_name=="Region"){
       for (i in 1:length(levels(mod_data$Region)[1:8])){
@@ -973,7 +1011,7 @@ plot_by_predictor_sorted<-function(predictions_vglm,  predictor_name){
     geom_pointrange(position=position_dodge(width = 0.5))+
     theme_minimal()+
     #  ylim(c(0, 0.5))+
-    scale_colour_manual(values = colour_pal[c(1:3, 7:8)])+
+    scale_colour_manual(values = colour_pal[c(1,3, 7,8)])+
       scale_shape_manual(values = shapes_code)+
     xlab(predictor_name)+
     ylab("Prediction probability")+
@@ -1023,7 +1061,7 @@ plot_by_predictor<-function(predictions_vglm,  predictor_name){
     geom_pointrange(position=position_dodge(width = 0.5))+
     theme_minimal()+
     #  ylim(c(0, 0.5))+
-    scale_colour_manual(values = colour_pal[c(1:3, 7:8)])+
+    scale_colour_manual(values = colour_pal[c(1,3, 7,8)])+
       scale_shape_manual(values = shapes_code)+
     xlab(predictor_name)+
     ylab("Prediction probability")+
@@ -1064,8 +1102,8 @@ plot_by_numeric<-function(predictions_vglm, predictor_label){
     theme_minimal()+
    #    scale_shape_manual(values = shapes_code)+
     #  ylim(c(0, 0.5))+
-    scale_colour_manual(values = colour_pal[c(1:3, 7:8)])+
-     scale_fill_manual(values = colour_pal[c(1:3, 7:8)])+
+    scale_colour_manual(values = colour_pal[c(1,3, 7:8)])+
+     scale_fill_manual(values = colour_pal[c(1,3, 7:8)])+
   scale_linetype_manual(values=c("twodash", "dotted", "solid"))+
     xlab(predictor_label)+
     ylab("Prediction probability")
@@ -1085,7 +1123,7 @@ terms<-attr(adj_vglm@terms$terms, "term.labels")
 
 
 predictor_names<-c("Region", "Home_IMD_quint", 
-                   "Income", "ACNG_A_pred_ptc_wtd_percent_cats",
+                   "Income", "ACNG_4cats",
                    "AH_A_pred_ptc_wtd_percent_cats", 
                    "BMYW_A_pred_ptc_wtd_percent_cats",
                    "BUAG_A_pred_ptc_wtd_percent_cats",
@@ -1107,7 +1145,7 @@ for (i in 1:length(predictor_names)){
     new_data_df$BUAG_A_pred_ptc_wtd_percent_cats<- ">0 - <50"
   }
   ## Predict outcome
-  predictions_vglm<-predict_for_plots(new_data_df,predictor_names[i], adj_vglm, mod_data$local_good_nature_ord)
+  predictions_vglm<-predict_for_plots(new_data_df,predictor_names[i], adj_vglm, mod_data$local_good_nature_ord_4cats)
   
   ## Plot predictions
     if (predictor_names[i]=="Region"){
@@ -1138,7 +1176,7 @@ terms<-attr(adj_vglm_num_habs@terms$terms, "term.labels")
 new_data_df<-create_new_data(mod_data$num_habs_wtd,
                                 terms, "num_habs_wtd")
 new_data_df$BUAG_A_pred_ptc_wtd_percent_cats<-">0 - <50"
-predictions_vglm<-predict_for_plots(new_data_df,"num_habs_wtd", adj_vglm_num_habs, mod_data$local_good_nature_ord)
+predictions_vglm<-predict_for_plots(new_data_df,"num_habs_wtd", adj_vglm_num_habs, mod_data$local_good_nature_ord_4cats)
 
 ## Plot opportunities to see nature by number of residential land covers
 p_vglm_num<-plot_by_numeric(predictions_vglm,"Number of habitats")
