@@ -994,26 +994,16 @@ plot_by_predictor_sorted<-function(predictions_vglm,  predictor_name){
     relevel(ref = "Reference")
    shapes_code<-c(4, 1, 16)
    predictions_vglm$Variable<-fct_recode(predictions_vglm$Variable, "Yorkshire and\nthe Humber"="Yorkshire and the Humber")
-  p_vglm<-ggplot(predictions_vglm, aes(x = Variable, y = Predictions,ymax = upr, ymin = lwr, colour = Response, group = Response, shape = Significance))+
-    geom_pointrange(position=position_dodge(width = 0.5))+
-    theme_minimal()+
-    #  ylim(c(0, 0.5))+
-    scale_colour_manual(values = colour_pal[c(1,3, 7,8)])+
-      scale_shape_manual(values = shapes_code)+
-    xlab(predictor_name)+
-    ylab("Prediction probability")+
-    theme(axis.text.x = element_text(angle = 25, vjust = 1, hjust=0.5), 
-          plot.margin = unit(c(0.2, 1, 0.1, 0.2),                                                                        "inches"), 
-          legend.position="bottom")+
-    coord_cartesian(clip = 'off')+
-    guides(color = "none")
-  
-  ind<-which(predictions_vglm$Variable==levels(predictions_vglm$Variable)[length(levels(predictions_vglm$Variable))])
-  p_vglm<- p_vglm +
-    annotate("text", x =(length(levels(predictions_vglm$Variable)))+0.5, 
-             y = predictions_vglm$Predictions[ind], 
-             label = predictions_vglm$Response[ind],
-             hjust= 0, size = 3)
+  p_vglm<-ggplot(predictions_vglm, 
+               aes(x = Variable, y = Predictions,ymax = upr, ymin = lwr, 
+                   colour = Response, group = Response, shape = Significance))+
+  geom_pointrange(position=position_dodge(width = 0.5))+
+  theme_minimal()+
+  scale_colour_manual(values = colour_pal[c(1,3, 7,8)])+
+  scale_shape_manual(values = shapes_code)+
+  xlab(predictor_name)+
+  ylab("Prediction probability")+
+  theme(axis.text.x = element_text(angle = 25, vjust = 1, hjust=0.5))
   return(p_vglm)
 }
 
@@ -1042,28 +1032,17 @@ plot_by_predictor<-function(predictions_vglm,  predictor_name){
     }
  
   p_vglm<-ggplot(predictions_vglm,
-                   aes(x = Variable, y = Predictions,ymax = upr, 
-                       ymin = lwr, colour = Response, 
-                     shape = Significance))+
-    geom_pointrange(position=position_dodge(width = 0.5))+
-    theme_minimal()+
-    #  ylim(c(0, 0.5))+
-    scale_colour_manual(values = colour_pal[c(1,3, 7,8)])+
-      scale_shape_manual(values = shapes_code)+
-    xlab(predictor_name)+
-    ylab("Prediction probability")+
-    theme(axis.text.x = element_text(angle = 25, vjust = 1, hjust=0.5), 
-           plot.margin = unit(c(0.2, 1, 0.1, 0.2),   "inches"),
-          legend.position="bottom")+
-    coord_cartesian(clip = 'off') +
-    guides(color = "none")
+               aes(x = Variable, y = Predictions,ymax = upr, 
+                   ymin = lwr, colour = Response, 
+                   shape = Significance))+
+  geom_pointrange(position=position_dodge(width = 0.5))+
+  theme_minimal()+
+  scale_colour_manual(values = colour_pal[c(1,3, 7,8)])+
+  scale_shape_manual(values = shapes_code)+
+  xlab(predictor_name)+
+  ylab("Prediction probability")+
+  theme(axis.text.x = element_text(angle = 25, vjust = 1, hjust=0.5))
   
-  ind<-which(predictions_vglm$Variable==levels(predictions_vglm$Variable)[length(levels(predictions_vglm$Variable))])
-  p_vglm<- p_vglm +
-    annotate("text", x =(length(levels(predictions_vglm$Variable)))+0.5, 
-             y = predictions_vglm$Predictions[ind], 
-             label = predictions_vglm$Response[ind],
-             hjust= 0, size = 3)
   return(p_vglm)
 }
 
@@ -1151,9 +1130,8 @@ list_plots<-ls(pattern = "p_by_pred")
 setwd(Figures_wd)
 for ( i in 1:length(list_plots)){
   start_char<-max(unlist(gregexpr("_", list_plots[i])))
-  ggsave(paste0("plot_preds_nature_opps_ord_by_pred", substr(list_plots[i], start_char, nchar(list_plots[i])), ".png"),plot =  plot(get(list_plots[i])),dpi = 300, height = 4.75, width = 7, units = "in")
+  ggsave(paste0("plot_preds_nature_opps_ord_by_pred", substr(list_plots[i], start_char, nchar(list_plots[i])), ".png"),plot =  plot(get(list_plots[i])),dpi = 300, height = 4.75, width = 8, units = "in")
   rm(start_char)
-
 }
 
 rm(i, list_plots)
@@ -1168,8 +1146,9 @@ predictions_vglm<-predict_for_plots(new_data_df,"num_habs_wtd", adj_vglm_num_hab
 ## Plot opportunities to see nature by number of residential land covers
 p_vglm_num<-plot_by_numeric(predictions_vglm,"Number of habitats")
 setwd(Figures_wd)
-ggsave("RQ1_ordered_predictions_num_habitats.png", dpi = 300,width = 6, height = 4, units = "in")
 p_vglm_num
+ggsave("RQ1_ordered_predictions_num_habitats.png", dpi = 300,width = 6, height = 4, units = "in")
+
 
 rm(i, list_plots)
 list_vglm<-ls(pattern = "vglm")
